@@ -107,8 +107,7 @@ impl FileTransferClient for SftpClient {
     }
 
     async fn chmod(&mut self, path: &str, mode: u32) -> Result<(), ProtocolError> {
-        let mut attrs = FileAttributes::default();
-        attrs.permissions = Some(mode);
+        let attrs = FileAttributes { permissions: Some(mode), ..Default::default() };
         self.sftp
             .set_metadata(path, attrs)
             .await

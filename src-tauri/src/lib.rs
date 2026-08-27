@@ -20,7 +20,11 @@ pub fn run() {
                 )?;
             }
 
-            let state = AppState::new()?;
+            // `AppState::new` builds the `TransferEngine`, which spawns its
+            // background dispatcher via `tokio::spawn` and therefore needs
+            // an entered Tokio runtime context - the setup closure itself
+            // runs on Tauri's event loop thread, outside of one.
+            let state = tauri::async_runtime::block_on(async { AppState::new() })?;
             let mut events = state.transfer_engine.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

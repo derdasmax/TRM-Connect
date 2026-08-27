@@ -70,8 +70,10 @@ pub async fn connect(profile: &SiteProfile) -> Result<SshConnection, ProtocolErr
         observed: observed.clone(),
     };
 
-    let mut config = client::Config::default();
-    config.inactivity_timeout = Some(Duration::from_secs(60));
+    let config = client::Config {
+        inactivity_timeout: Some(Duration::from_secs(60)),
+        ..Default::default()
+    };
 
     let addr = (profile.host.as_str(), profile.port);
     let mut handle = tokio::time::timeout(

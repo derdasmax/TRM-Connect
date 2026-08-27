@@ -95,18 +95,20 @@ export function TransferQueuePanel() {
 
   return (
     <div className="flex flex-col border-t border-surface-border bg-surface-1">
-      <button
-        onClick={() => setTransferQueueCollapsed(!transferQueueCollapsed)}
-        className="flex items-center gap-2 px-3 py-1.5 text-left"
-      >
-        <motion.span animate={{ rotate: transferQueueCollapsed ? -90 : 0 }} transition={{ duration: 0.15 }}>
-          <ChevronDown size={14} className="text-zinc-500" />
-        </motion.span>
-        <span className="text-xs font-medium text-zinc-300">Transfers</span>
-        {active > 0 && (
-          <span className="rounded-full bg-accent-600/30 px-1.5 py-0.5 text-[10px] text-accent-300">{active}</span>
-        )}
-        <div className="ml-auto flex gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <button
+          onClick={() => setTransferQueueCollapsed(!transferQueueCollapsed)}
+          className="flex flex-1 items-center gap-2 text-left"
+        >
+          <motion.span animate={{ rotate: transferQueueCollapsed ? -90 : 0 }} transition={{ duration: 0.15 }}>
+            <ChevronDown size={14} className="text-zinc-500" />
+          </motion.span>
+          <span className="text-xs font-medium text-zinc-300">Transfers</span>
+          {active > 0 && (
+            <span className="rounded-full bg-accent-600/30 px-1.5 py-0.5 text-[10px] text-accent-300">{active}</span>
+          )}
+        </button>
+        <div className="flex gap-1">
           <IconButton title="Pause all" onClick={() => pauseAll()}>
             <Pause size={13} />
           </IconButton>
@@ -117,7 +119,7 @@ export function TransferQueuePanel() {
             <X size={13} />
           </IconButton>
         </div>
-      </button>
+      </div>
       <AnimatePresence initial={false}>
         {!transferQueueCollapsed && (
           <motion.div

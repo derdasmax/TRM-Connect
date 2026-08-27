@@ -1,0 +1,66 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "TRM-Connect",
+  "mainBinaryName": "TRM-Connect",
+  "version": "0.1.0",
+  "identifier": "com.trmconnect.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TRM-Connect",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "createUpdaterArtifacts": false,
+    "publisher": "TRM-Connect",
+    "copyright": "Copyright © TRM-Connect contributors",
+    "category": "Utility",
+    "shortDescription": "Modern SFTP/FTP/FTPS/SCP file transfer client",
+    "longDescription": "TRM-Connect is a modern, animated Windows desktop client for SFTP, FTP, FTPS and SCP file transfers, inspired by WinSCP with a fluid, contemporary UI.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installMode": "perMachine",
+        "languages": ["English", "German"],
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": "en-US"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}

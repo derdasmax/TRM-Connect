@@ -1,0 +1,60 @@
+import { Moon, Plug, PlugZap, Server, Sun, Zap } from "lucide-react";
+import { Button, IconButton } from "../ui/Button";
+import { useSettingsStore } from "../../store/useSettingsStore";
+import type { ConnectionInfo } from "../../lib/types";
+
+interface TopBarProps {
+  connection: ConnectionInfo | null;
+  connecting: boolean;
+  onQuickConnect: () => void;
+  onOpenSiteManager: () => void;
+  onDisconnect: () => void;
+}
+
+export function TopBar({ connection, connecting, onQuickConnect, onOpenSiteManager, onDisconnect }: TopBarProps) {
+  const { theme, setTheme } = useSettingsStore();
+
+  return (
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-surface-border bg-surface-0 px-3">
+      <div className="flex items-center gap-1.5 pr-2">
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-accent-600">
+          <Zap size={12} className="text-white" fill="currentColor" />
+        </div>
+        <span className="text-sm font-semibold text-zinc-100">TRM-Connect</span>
+      </div>
+
+      <div className="h-5 w-px bg-surface-border" />
+
+      <Button variant="ghost" onClick={onOpenSiteManager}>
+        <Server size={14} /> Site Manager
+      </Button>
+      <Button variant="ghost" onClick={onQuickConnect} disabled={connecting}>
+        <Plug size={14} /> Quick Connect
+      </Button>
+
+      <div className="ml-2 flex items-center gap-1.5 text-[12px] text-zinc-400">
+        {connecting && <span className="animate-pulse text-accent-400">Connecting…</span>}
+        {connection && (
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400">
+            <PlugZap size={12} /> {connection.protocol.toUpperCase()} connected
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1" />
+
+      {connection && (
+        <Button variant="ghost" onClick={onDisconnect}>
+          Disconnect
+        </Button>
+      )}
+
+      <IconButton
+        title={`Theme: ${theme}`}
+        onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}
+      >
+        {theme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
+      </IconButton>
+    </div>
+  );
+}

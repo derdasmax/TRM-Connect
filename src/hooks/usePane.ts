@@ -25,6 +25,8 @@ export interface PaneController {
   navigateUp: () => void;
   toggleSelect: (path: string, additive: boolean) => void;
   selectRange: (from: string, to: string) => void;
+  /** Replaces the selection outright (used by rubber-band/marquee selection). */
+  replaceSelection: (paths: string[]) => void;
   clearSelection: () => void;
   mkdir: (name: string) => Promise<void>;
   removeSelected: () => Promise<void>;
@@ -129,6 +131,8 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
 
+  const replaceSelection = useCallback((paths: string[]) => setSelection(new Set(paths)), []);
+
   const mkdir = useCallback(
     async (name: string) => {
       const full = joinPath(path, name, sep);
@@ -201,6 +205,7 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
     navigateUp,
     toggleSelect,
     selectRange,
+    replaceSelection,
     clearSelection,
     mkdir,
     removeSelected,

@@ -7,7 +7,7 @@ import { Input } from "../ui/Field";
 import { Modal } from "../ui/Modal";
 import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
 import { ChmodDialog } from "./ChmodDialog";
-import { joinPath } from "../../lib/format";
+import { joinPath, formatBytes } from "../../lib/format";
 import type { PaneController } from "../../hooks/usePane";
 import type { DirEntry } from "../../lib/types";
 
@@ -113,7 +113,10 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
       <div className="flex items-center justify-between border-t border-surface-border px-2.5 py-1 text-[11px] text-zinc-500">
         <span>
           {pane.entries.length} item{pane.entries.length === 1 ? "" : "s"}
-          {pane.selection.size > 0 && ` · ${pane.selection.size} selected`}
+          {pane.selection.size > 0 &&
+            ` · ${pane.selection.size} selected (${formatBytes(
+              pane.entries.reduce((sum, e) => (pane.selection.has(e.path) ? sum + e.size : sum), 0),
+            )})`}
         </span>
         {pane.kind === "remote" && (
           <span className="flex items-center gap-1">

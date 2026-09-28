@@ -1,8 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Folder, File as FileIcon, FileArchive, FileCode, FileImage, FileText, Link2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ComponentType, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { formatBytes, formatDate, permissionsToString } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { iconForEntry } from "../../lib/fileIcons";
 import type { DirEntry } from "../../lib/types";
 import type { PaneController } from "../../hooks/usePane";
 
@@ -14,20 +14,6 @@ const AUTOSCROLL_MAX_SPEED = 20;
 /** Minimum pointer movement, in px, before a mousedown-on-empty-space becomes a marquee drag
  *  instead of a plain click-to-deselect. */
 const DRAG_THRESHOLD = 4;
-
-const EXT_ICON: Record<string, ComponentType<{ size?: number; className?: string }>> = {
-  zip: FileArchive, gz: FileArchive, tar: FileArchive, "7z": FileArchive, rar: FileArchive,
-  png: FileImage, jpg: FileImage, jpeg: FileImage, gif: FileImage, svg: FileImage, webp: FileImage,
-  ts: FileCode, tsx: FileCode, js: FileCode, jsx: FileCode, rs: FileCode, py: FileCode, go: FileCode, json: FileCode, html: FileCode, css: FileCode,
-  txt: FileText, md: FileText, log: FileText,
-};
-
-function iconFor(entry: DirEntry) {
-  if (entry.is_dir) return Folder;
-  if (entry.is_symlink) return Link2;
-  const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
-  return EXT_ICON[ext] ?? FileIcon;
-}
 
 interface FileListProps {
   pane: PaneController;
@@ -209,7 +195,7 @@ export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHig
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((row) => {
           const entry = pane.entries[row.index];
-          const Icon = iconFor(entry);
+          const { Icon, colorClass } = iconForEntry(entry);
           const selected = pane.selection.has(entry.path);
           return (
             <div
@@ -240,7 +226,7 @@ export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHig
                 onContextMenu(entry, e.clientX, e.clientY);
               }}
             >
-              <Icon size={15} className={cn("shrink-0", entry.is_dir ? "text-accent-400" : "text-zinc-500")} />
+              <Icon size={15} className={cn("shrink-0 transition-transform group-hover:scale-110", colorClass)} />
               <span className="min-w-0 flex-1 truncate">{entry.name}</span>
               {showPermissions && (
                 <span className="w-20 shrink-0 font-mono text-[11px] text-zinc-500">

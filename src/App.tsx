@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { ShieldCheck, X } from "lucide-react";
+import { Plug, Server, ShieldCheck, X } from "lucide-react";
 import { TopBar } from "./components/layout/TopBar";
 import { Pane } from "./components/browser/Pane";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
 import { SiteManagerModal } from "./components/sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "./components/sitemanager/QuickConnectModal";
+import { Button, IconButton } from "./components/ui/Button";
 import { usePane } from "./hooks/usePane";
 import { api, isTauri } from "./lib/api";
 import { joinPath } from "./lib/format";
@@ -126,6 +127,7 @@ export default function App() {
       <TopBar
         connection={connection}
         connecting={connecting}
+        hasError={!!connectError}
         onQuickConnect={() => setQuickConnectOpen(true)}
         onOpenSiteManager={() => setSiteManagerOpen(true)}
         onDisconnect={handleDisconnect}
@@ -134,9 +136,9 @@ export default function App() {
       {connectError && (
         <div className="flex items-center justify-between border-b border-red-900/40 bg-red-950/40 px-4 py-2 text-[13px] text-red-300">
           <span>Connection failed: {connectError}</span>
-          <button onClick={() => setConnectError(null)}>
+          <IconButton onClick={() => setConnectError(null)} title="Dismiss">
             <X size={14} />
-          </button>
+          </IconButton>
         </div>
       )}
 
@@ -146,15 +148,15 @@ export default function App() {
             <ShieldCheck size={14} />
             First connection to this server. Host key fingerprint: <code className="font-mono">{hostKeyNotice.fingerprint}</code>
           </span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {hostKeyNotice.canPin && (
-              <button onClick={trustHostKey} className="rounded bg-amber-500/20 px-2 py-0.5 hover:bg-amber-500/30">
-                Trust &amp; remember
-              </button>
+              <Button variant="ghost" onClick={trustHostKey} className="!py-0.5 text-amber-200 hover:bg-amber-500/20">
+                <ShieldCheck size={13} /> Trust &amp; remember
+              </Button>
             )}
-            <button onClick={() => setHostKeyNotice(null)}>
+            <IconButton onClick={() => setHostKeyNotice(null)} title="Dismiss">
               <X size={14} />
-            </button>
+            </IconButton>
           </div>
         </div>
       )}
@@ -192,18 +194,12 @@ export default function App() {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-1 text-zinc-500">
               <p className="text-sm">Not connected</p>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setQuickConnectOpen(true)}
-                  className="rounded-md bg-accent-600 px-3 py-1.5 text-sm text-white hover:bg-accent-500"
-                >
-                  Quick Connect
-                </button>
-                <button
-                  onClick={() => setSiteManagerOpen(true)}
-                  className="rounded-md border border-surface-border px-3 py-1.5 text-sm text-zinc-300 hover:bg-surface-2"
-                >
-                  Site Manager
-                </button>
+                <Button variant="primary" onClick={() => setQuickConnectOpen(true)}>
+                  <Plug size={14} /> Quick Connect
+                </Button>
+                <Button variant="secondary" onClick={() => setSiteManagerOpen(true)}>
+                  <Server size={14} /> Site Manager
+                </Button>
               </div>
             </div>
           )}

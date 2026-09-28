@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Plug, Save, X as XIcon } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Checkbox, FieldRow, Input, Select } from "../ui/Field";
 import { defaultPortFor, emptySecret, type AuthMethod, type Protocol, type SiteProfile } from "../../lib/types";
@@ -163,17 +164,17 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
 
       <div className="mt-4 flex justify-between gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
+          <XIcon size={14} /> Cancel
         </Button>
         <div className="flex gap-2">
           {mode === "manage" && (
             <Button type="submit" variant="secondary">
-              Save
+              <Save size={14} /> Save
             </Button>
           )}
           {onConnect && (
             <Button type="button" variant="primary" onClick={() => onConnect(profile)}>
-              {mode === "quick" ? "Connect" : "Save & Connect"}
+              <Plug size={14} /> {mode === "quick" ? "Connect" : "Save & Connect"}
             </Button>
           )}
         </div>

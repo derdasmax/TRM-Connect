@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { Check, X as XIcon } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import type { DirEntry } from "../../lib/types";
@@ -68,10 +69,10 @@ export function ChmodDialog({ entry, onClose, onSubmit }: ChmodDialogProps) {
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          <XIcon size={14} /> Cancel
         </Button>
         <Button variant="primary" onClick={() => onSubmit(parseInt(octal.padStart(3, "0"), 8))}>
-          Apply
+          <Check size={14} /> Apply
         </Button>
       </div>
     </Modal>

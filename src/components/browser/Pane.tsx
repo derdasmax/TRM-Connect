@@ -1,12 +1,26 @@
 import { useState } from "react";
-import { ArrowUp, FolderPlus, RefreshCw, Search, Trash2, ArrowLeftRight, Lock } from "lucide-react";
+import {
+  ArrowUp,
+  FolderPlus,
+  RefreshCw,
+  Search,
+  Trash2,
+  ArrowLeftRight,
+  Lock,
+  Check,
+  X as XIcon,
+  FolderOpen,
+  PenLine,
+  ShieldCheck,
+} from "lucide-react";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileList } from "./FileList";
-import { IconButton } from "../ui/Button";
+import { Button, IconButton } from "../ui/Button";
 import { Input } from "../ui/Field";
 import { Modal } from "../ui/Modal";
 import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
 import { ChmodDialog } from "./ChmodDialog";
+import { ConnectionStatusIcon } from "../../lib/ConnectionStatusIcon";
 import { joinPath, formatBytes } from "../../lib/format";
 import type { PaneController } from "../../hooks/usePane";
 import type { DirEntry } from "../../lib/types";
@@ -31,29 +45,38 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
   const menuItems: MenuItem[] | null = menu
     ? menu.entry
       ? [
-          { label: "Open", onClick: () => pane.navigateInto(menu.entry as DirEntry), disabled: !menu.entry.is_dir },
+          {
+            label: "Open",
+            icon: FolderOpen,
+            onClick: () => pane.navigateInto(menu.entry as DirEntry),
+            disabled: !menu.entry.is_dir,
+          },
           {
             label: "Rename",
+            icon: PenLine,
             onClick: () => {
               setRenameTarget(menu.entry);
               setDraft(menu.entry!.name);
             },
           },
           ...(pane.chmod
-            ? [{ label: "Permissions…", onClick: () => setChmodTarget(menu.entry) }]
+            ? [{ label: "Permissions…", icon: ShieldCheck, onClick: () => setChmodTarget(menu.entry) }]
             : []),
-          { label: "Delete", danger: true, separatorBefore: true, onClick: () => void pane.removeSelected() },
+          { label: "Delete", icon: Trash2, danger: true, separatorBefore: true, onClick: () => void pane.removeSelected() },
         ]
       : [
-          { label: "New folder", onClick: () => setNewFolderOpen(true) },
-          { label: "Refresh", onClick: () => pane.refresh() },
+          { label: "New folder", icon: FolderPlus, onClick: () => setNewFolderOpen(true) },
+          { label: "Refresh", icon: RefreshCw, onClick: () => pane.refresh() },
         ]
     : null;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-1">
       <div className="flex items-center gap-2 border-b border-surface-border px-2 py-1.5">
-        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{title}</span>
+        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          {title}
+          {pane.loading && <ConnectionStatusIcon status="syncing" size={11} />}
+        </span>
         <Breadcrumbs path={pane.path} sep={pane.sep} onNavigate={pane.navigate} />
         <div className="flex shrink-0 items-center gap-0.5">
           <IconButton title="Up" onClick={pane.navigateUp}>
@@ -137,6 +160,14 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
           }}
         >
           <Input name="name" autoFocus placeholder="Folder name" />
+          <div className="mt-3 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setNewFolderOpen(false)}>
+              <XIcon size={14} /> Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              <FolderPlus size={14} /> Create
+            </Button>
+          </div>
         </form>
       </Modal>
 
@@ -149,6 +180,14 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
           }}
         >
           <Input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <div className="mt-3 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setRenameTarget(null)}>
+              <XIcon size={14} /> Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              <Check size={14} /> Rename
+            </Button>
+          </div>
         </form>
       </Modal>
 

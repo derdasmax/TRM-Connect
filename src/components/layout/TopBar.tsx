@@ -1,18 +1,28 @@
-import { Moon, Plug, PlugZap, Server, Sun, Zap } from "lucide-react";
+import { Moon, Plug, Server, Sun, Unplug, Zap } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
+import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import type { ConnectionInfo } from "../../lib/types";
 
 interface TopBarProps {
   connection: ConnectionInfo | null;
   connecting: boolean;
+  hasError?: boolean;
   onQuickConnect: () => void;
   onOpenSiteManager: () => void;
   onDisconnect: () => void;
 }
 
-export function TopBar({ connection, connecting, onQuickConnect, onOpenSiteManager, onDisconnect }: TopBarProps) {
+export function TopBar({ connection, connecting, hasError, onQuickConnect, onOpenSiteManager, onDisconnect }: TopBarProps) {
   const { theme, setTheme } = useSettingsStore();
+
+  const status: ConnectionStatus = connection
+    ? "connected"
+    : connecting
+      ? "connecting"
+      : hasError
+        ? "error"
+        : "disconnected";
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-surface-border bg-surface-0 px-3">
@@ -33,19 +43,21 @@ export function TopBar({ connection, connecting, onQuickConnect, onOpenSiteManag
       </Button>
 
       <div className="ml-2 flex items-center gap-1.5 text-[12px] text-zinc-400">
-        {connecting && <span className="animate-pulse text-accent-400">Connecting…</span>}
+        <ConnectionStatusIcon status={status} size={13} />
+        {connecting && <span className="text-accent-400">Connecting…</span>}
         {connection && (
           <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400">
-            <PlugZap size={12} /> {connection.protocol.toUpperCase()} connected
+            {connection.protocol.toUpperCase()} connected
           </span>
         )}
+        {!connection && !connecting && hasError && <span className="text-red-400">Connection error</span>}
       </div>
 
       <div className="flex-1" />
 
       {connection && (
         <Button variant="ghost" onClick={onDisconnect}>
-          Disconnect
+          <Unplug size={14} /> Disconnect
         </Button>
       )}
 

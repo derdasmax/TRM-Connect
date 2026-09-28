@@ -18,7 +18,7 @@ export function Button({ variant = "secondary", className, ...props }: ButtonPro
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
         variants[variant],
         className,
       )}
@@ -35,7 +35,7 @@ export function IconButton({
   return (
     <button
       className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors duration-100 hover:bg-surface-2 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent",
+        "inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-all duration-100 hover:scale-110 hover:bg-surface-2 hover:text-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100 disabled:hover:bg-transparent",
         active && "bg-surface-2 text-accent-400",
         className,
       )}

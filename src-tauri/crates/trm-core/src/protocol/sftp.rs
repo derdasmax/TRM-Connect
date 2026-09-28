@@ -114,6 +114,10 @@ impl FileTransferClient for SftpClient {
             .map_err(|e| ProtocolError::Remote(e.to_string()))
     }
 
+    async fn checksum(&mut self, path: &str) -> Result<Option<String>, ProtocolError> {
+        ssh_session::sha256_of(&self._ssh, path).await
+    }
+
     async fn download(
         &mut self,
         remote_path: &str,
@@ -141,6 +145,7 @@ impl FileTransferClient for SftpClient {
             }
             local.write_all(&buf[..n]).await?;
             total += n as u64;
+            control.throttle(n as u64).await;
             let _ = control.progress_tx.send(total);
         }
         local.flush().await?;
@@ -174,6 +179,7 @@ impl FileTransferClient for SftpClient {
             }
             remote.write_all(&buf[..n]).await.map_err(|e| ProtocolError::Remote(e.to_string()))?;
             total += n as u64;
+            control.throttle(n as u64).await;
             let _ = control.progress_tx.send(total);
         }
         remote.flush().await.map_err(|e| ProtocolError::Remote(e.to_string()))?;

@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { Plug, Server, ShieldCheck, X } from "lucide-react";
+import { Plug, RotateCcw, Server, ShieldCheck, X } from "lucide-react";
 import { TopBar } from "./components/layout/TopBar";
 import { SplashScreen } from "./components/layout/SplashScreen";
 import { Pane } from "./components/browser/Pane";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
+import { ConflictDialog } from "./components/transfers/ConflictDialog";
 import { SiteManagerModal } from "./components/sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "./components/sitemanager/QuickConnectModal";
+import { SettingsModal } from "./components/settings/SettingsModal";
+import { ErrorNotice } from "./components/common/ErrorNotice";
 import { Button, IconButton } from "./components/ui/Button";
 import { usePane } from "./hooks/usePane";
+import { useConflictAwareEnqueue } from "./hooks/useConflictAwareEnqueue";
 import { api, isTauri } from "./lib/api";
-import { joinPath } from "./lib/format";
-import { initSettingsEffects } from "./store/useSettingsStore";
+import { isTypingTarget } from "./lib/dom";
+import { initSettingsEffects, useSettingsStore } from "./store/useSettingsStore";
+import { useSessionStore } from "./store/useSessionStore";
 import { useSitesStore } from "./store/useSitesStore";
 import { useTransferStore } from "./store/useTransferStore";
+import { useUndoStore } from "./store/useUndoStore";
 import type { ConnectionInfo, SiteProfile } from "./lib/types";
 
 function basename(path: string): string {
@@ -21,7 +27,11 @@ function basename(path: string): string {
 }
 
 export default function App() {
-  const [homeDir, setHomeDir] = useState<string>("/");
+  // Empty (not "/") until the real value resolves - "/" is a legitimate
+  // resolved home directory on some systems, so it can't double as a
+  // not-yet-loaded sentinel without corrupting the session-restore effect
+  // below (which persists whatever the pane's current path is).
+  const [homeDir, setHomeDir] = useState<string>("");
   const [connection, setConnection] = useState<ConnectionInfo | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -32,10 +42,18 @@ export default function App() {
   const [dragOverRemote, setDragOverRemote] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [sessionRestoreDismissed, setSessionRestoreDismissed] = useState(false);
 
   const remotePaneRef = useRef<HTMLDivElement>(null);
   const { load: loadSites, save: saveSite } = useSitesStore();
-  const { enqueueUpload, enqueueDownload, init: initTransfers } = useTransferStore();
+  const { init: initTransfers } = useTransferStore();
+  const conflictAware = useConflictAwareEnqueue();
+  const canUndo = useUndoStore((s) => s.undoStack.length > 0);
+  const canRedo = useUndoStore((s) => s.redoStack.length > 0);
+  const lastSiteId = useSessionStore((s) => s.lastSiteId);
+  const sites = useSitesStore((s) => s.sites);
 
   useEffect(() => {
     initSettingsEffects();
@@ -50,11 +68,67 @@ export default function App() {
   const localPane = usePane("local", null, homeDir || "/");
   const remotePane = usePane("remote", connection?.connection_id ?? null, "/");
 
-  // Re-sync local pane's initial path once the real home directory resolves.
+  // Re-sync local pane's initial path once the real home directory resolves,
+  // restoring the last session's local path when one was saved.
   useEffect(() => {
-    if (homeDir) localPane.navigate(homeDir);
+    if (homeDir) localPane.navigate(useSessionStore.getState().lastLocalPath || homeDir);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeDir]);
+
+  useEffect(() => {
+    // Gated on `homeDir` too: before it resolves, `localPane.path` is still
+    // sitting on usePane's own placeholder fallback ("/"), and persisting
+    // that would permanently mask the real home directory once it arrives.
+    if (homeDir && localPane.path) useSessionStore.getState().setLastLocalPath(localPane.path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localPane.path, homeDir]);
+
+  useEffect(() => {
+    if (connection && remotePane.path) useSessionStore.getState().setLastRemoteDir(remotePane.path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection, remotePane.path]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      void (e.shiftKey ? handleRedo() : handleUndo());
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleUndo() {
+    try {
+      const kind = await useUndoStore.getState().undo();
+      if (kind === "local") localPane.refresh();
+      else if (kind === "remote") remotePane.refresh();
+    } catch (e) {
+      setActionError(String(e));
+    }
+  }
+
+  async function handleRedo() {
+    try {
+      const kind = await useUndoStore.getState().redo();
+      if (kind === "local") localPane.refresh();
+      else if (kind === "remote") remotePane.refresh();
+    } catch (e) {
+      setActionError(String(e));
+    }
+  }
+
+  async function restoreLastSession() {
+    const site = sites.find((s) => s.id === lastSiteId);
+    setSessionRestoreDismissed(true);
+    if (!site) return;
+    await handleConnect(site, site.id);
+    const remoteDir = useSessionStore.getState().lastRemoteDir;
+    if (remoteDir) remotePane.navigate(remoteDir);
+  }
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -77,10 +151,17 @@ export default function App() {
         } else if (payload.type === "drop") {
           setDragOverRemote(false);
           if (over && connection) {
-            for (const path of payload.paths) {
-              const remotePath = joinPath(remotePane.path, basename(path), remotePane.sep);
-              void enqueueUpload(connection.connection_id, path, remotePath);
-            }
+            const targets = payload.paths.map((path) => ({
+              sourcePath: path,
+              destDir: remotePane.path,
+              name: basename(path),
+              sep: remotePane.sep,
+              size: 0,
+              modified: null,
+            }));
+            void conflictAware.start("upload", connection.connection_id, targets, {
+              verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+            });
           }
         }
       })
@@ -99,6 +180,7 @@ export default function App() {
       setConnection(info);
       setActiveSiteId(siteId);
       remotePane.navigate(profile.remote_dir || "/");
+      if (siteId) useSessionStore.getState().setLastSite(siteId, profile.remote_dir || null);
       if (info.host_key_fingerprint && info.host_key_matched_pinned == null) {
         setHostKeyNotice({ fingerprint: info.host_key_fingerprint, canPin: !!siteId });
       }
@@ -136,14 +218,45 @@ export default function App() {
         onQuickConnect={() => setQuickConnectOpen(true)}
         onOpenSiteManager={() => setSiteManagerOpen(true)}
         onDisconnect={handleDisconnect}
+        onOpenSettings={() => setSettingsOpen(true)}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={() => void handleUndo()}
+        onRedo={() => void handleRedo()}
       />
 
       {connectError && (
         <div className="flex items-center justify-between border-b border-red-900/40 bg-red-950/40 px-4 py-2 text-[13px] text-red-300">
-          <span>Connection failed: {connectError}</span>
+          <ErrorNotice raw={connectError} />
           <IconButton onClick={() => setConnectError(null)} title="Dismiss">
             <X size={14} />
           </IconButton>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="flex items-center justify-between border-b border-red-900/40 bg-red-950/40 px-4 py-2 text-[13px] text-red-300">
+          <ErrorNotice raw={actionError} />
+          <IconButton onClick={() => setActionError(null)} title="Dismiss">
+            <X size={14} />
+          </IconButton>
+        </div>
+      )}
+
+      {!connection && !connecting && !sessionRestoreDismissed && lastSiteId && sites.some((s) => s.id === lastSiteId) && (
+        <div className="flex items-center justify-between border-b border-accent-900/40 bg-accent-950/20 px-4 py-2 text-[13px] text-accent-200">
+          <span className="flex items-center gap-2">
+            <RotateCcw size={14} />
+            Reconnect to {sites.find((s) => s.id === lastSiteId)?.name}?
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => void restoreLastSession()} className="!py-0.5 text-accent-200 hover:bg-accent-500/20">
+              <Plug size={13} /> Reconnect
+            </Button>
+            <IconButton onClick={() => setSessionRestoreDismissed(true)} title="Dismiss">
+              <X size={14} />
+            </IconButton>
+          </div>
         </div>
       )}
 
@@ -173,11 +286,20 @@ export default function App() {
           transferLabel="Upload to remote"
           transferDisabled={!connection}
           onTransferSelection={() => {
-            const targets = localPane.entries.filter((e) => localPane.selection.has(e.path) && !e.is_dir);
-            for (const t of targets) {
-              if (!connection) break;
-              void enqueueUpload(connection.connection_id, t.path, joinPath(remotePane.path, t.name, remotePane.sep));
-            }
+            if (!connection) return;
+            const targets = localPane.entries
+              .filter((e) => localPane.selection.has(e.path) && !e.is_dir)
+              .map((e) => ({
+                sourcePath: e.path,
+                destDir: remotePane.path,
+                name: e.name,
+                sep: remotePane.sep,
+                size: e.size,
+                modified: e.modified,
+              }));
+            void conflictAware.start("upload", connection.connection_id, targets, {
+              verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+            });
           }}
         />
         <div className="w-px shrink-0 bg-surface-border" />
@@ -188,10 +310,19 @@ export default function App() {
               pane={remotePane}
               transferLabel="Download to local"
               onTransferSelection={() => {
-                const targets = remotePane.entries.filter((e) => remotePane.selection.has(e.path) && !e.is_dir);
-                for (const t of targets) {
-                  void enqueueDownload(connection.connection_id, t.path, joinPath(localPane.path, t.name, localPane.sep));
-                }
+                const targets = remotePane.entries
+                  .filter((e) => remotePane.selection.has(e.path) && !e.is_dir)
+                  .map((e) => ({
+                    sourcePath: e.path,
+                    destDir: localPane.path,
+                    name: e.name,
+                    sep: localPane.sep,
+                    size: e.size,
+                    modified: e.modified,
+                  }));
+                void conflictAware.start("download", connection.connection_id, targets, {
+                  verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+                });
               }}
               dropHighlight={dragOverRemote}
             />
@@ -222,6 +353,12 @@ export default function App() {
         open={quickConnectOpen}
         onClose={() => setQuickConnectOpen(false)}
         onConnect={(profile) => void handleConnect(profile, null)}
+      />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ConflictDialog
+        conflict={conflictAware.current}
+        remainingCount={conflictAware.remainingCount}
+        onResolve={(resolution, applyToAll) => void conflictAware.resolve(resolution, applyToAll)}
       />
     </div>
   );

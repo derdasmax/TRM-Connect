@@ -5,6 +5,7 @@ use crate::model::{AuthMethod, SiteProfile};
 use crate::protocol::ProtocolError;
 use russh::client::{self, AuthResult};
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, load_secret_key};
+use russh::ChannelMsg;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -135,4 +136,55 @@ async fn authenticate(
             Err(ProtocolError::Auth("server rejected the supplied credentials".into()))
         }
     }
+}
+
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Runs a command over a fresh `exec` channel and captures its stdout plus
+/// exit status. Shared by SCP (browsing/management) and SFTP/SCP checksum
+/// verification, both of which ride the same SSH connection.
+pub async fn exec_capture(
+    handle: &client::Handle<SshHandler>,
+    command: &str,
+) -> Result<(Vec<u8>, Option<u32>), ProtocolError> {
+    let mut channel = handle
+        .channel_open_session()
+        .await
+        .map_err(|e| ProtocolError::Connect(e.to_string()))?;
+    channel
+        .exec(true, command.as_bytes())
+        .await
+        .map_err(|e| ProtocolError::Remote(e.to_string()))?;
+
+    let mut stdout = Vec::new();
+    let mut exit_status = None;
+    loop {
+        match channel.wait().await {
+            Some(ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
+            Some(ChannelMsg::ExtendedData { .. }) => {}
+            Some(ChannelMsg::ExitStatus { exit_status: code }) => exit_status = Some(code),
+            Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
+            _ => {}
+        }
+    }
+    Ok((stdout, exit_status))
+}
+
+/// Computes a SHA-256 hex digest of a remote file by shelling out to
+/// `sha256sum` (GNU coreutils) or falling back to `shasum -a 256` (macOS/BSD).
+/// Requires a POSIX shell on the remote host, same as SCP's management
+/// commands.
+pub async fn sha256_of(handle: &client::Handle<SshHandler>, path: &str) -> Result<Option<String>, ProtocolError> {
+    let quoted = shell_quote(path);
+    let cmd = format!(
+        "sha256sum -- {quoted} 2>/dev/null || shasum -a 256 -- {quoted} 2>/dev/null"
+    );
+    let (out, status) = exec_capture(handle, &cmd).await?;
+    if status != Some(0) {
+        return Ok(None);
+    }
+    let text = String::from_utf8_lossy(&out);
+    Ok(text.split_whitespace().next().map(|s| s.to_lowercase()))
 }

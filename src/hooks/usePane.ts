@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { joinPath, parentPath } from "../lib/format";
+import { useUndoStore } from "../store/useUndoStore";
 import type { DirEntry } from "../lib/types";
 
 export type SortKey = "name" | "size" | "modified";
@@ -8,6 +9,8 @@ export type PaneKind = "local" | "remote";
 
 export interface PaneController {
   kind: PaneKind;
+  /** Null for the local pane, or when the remote pane has no active connection yet. */
+  connectionId: string | null;
   path: string;
   entries: DirEntry[];
   loading: boolean;
@@ -138,6 +141,7 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
       const full = joinPath(path, name, sep);
       if (kind === "local") await api.localMkdir(full);
       else await api.remoteMkdir(connectionId as string, full);
+      useUndoStore.getState().push({ type: "mkdir", kind, connectionId, path: full });
       refresh();
     },
     [kind, connectionId, path, sep, refresh],
@@ -162,6 +166,7 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
       const to = joinPath(parentPath(p, sep), newName, sep);
       if (kind === "local") await api.localRename(p, to);
       else await api.remoteRename(connectionId as string, p, to);
+      useUndoStore.getState().push({ type: "rename", kind, connectionId, from: p, to });
       refresh();
     },
     [kind, connectionId, sep, refresh],
@@ -188,6 +193,7 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
 
   return {
     kind,
+    connectionId,
     path,
     entries: sorted,
     loading,

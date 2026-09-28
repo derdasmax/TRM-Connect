@@ -68,6 +68,14 @@ pub async fn remove_dir(path: &Path) -> Result<(), LocalFsError> {
     Ok(())
 }
 
+/// Removes a directory only if it's empty - unlike [`remove_dir`], this
+/// never touches anything inside it. Used to undo a `mkdir`, where silently
+/// recursing would risk deleting files the user added since creating it.
+pub async fn remove_empty_dir(path: &Path) -> Result<(), LocalFsError> {
+    tokio::fs::remove_dir(path).await?;
+    Ok(())
+}
+
 pub async fn rename(from: &Path, to: &Path) -> Result<(), LocalFsError> {
     tokio::fs::rename(from, to).await?;
     Ok(())
@@ -75,6 +83,24 @@ pub async fn rename(from: &Path, to: &Path) -> Result<(), LocalFsError> {
 
 pub fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(std::env::temp_dir)
+}
+
+/// Streams the file through SHA-256 without loading it into memory at once,
+/// so checksum verification stays cheap even for large transfers.
+pub async fn sha256_file(path: &Path) -> Result<String, LocalFsError> {
+    use sha2::{Digest, Sha256};
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 256 * 1024];
+    loop {
+        use tokio::io::AsyncReadExt;
+        let n = file.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

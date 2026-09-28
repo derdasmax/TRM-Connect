@@ -1,4 +1,4 @@
-import { Moon, Plug, Server, Sun, Unplug, Zap } from "lucide-react";
+import { Moon, Plug, Redo2, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
 import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
@@ -11,9 +11,26 @@ interface TopBarProps {
   onQuickConnect: () => void;
   onOpenSiteManager: () => void;
   onDisconnect: () => void;
+  onOpenSettings: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
-export function TopBar({ connection, connecting, hasError, onQuickConnect, onOpenSiteManager, onDisconnect }: TopBarProps) {
+export function TopBar({
+  connection,
+  connecting,
+  hasError,
+  onQuickConnect,
+  onOpenSiteManager,
+  onDisconnect,
+  onOpenSettings,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+}: TopBarProps) {
   const { theme, setTheme } = useSettingsStore();
 
   const status: ConnectionStatus = connection
@@ -55,12 +72,22 @@ export function TopBar({ connection, connecting, hasError, onQuickConnect, onOpe
 
       <div className="flex-1" />
 
+      <IconButton title="Undo" disabled={!canUndo} onClick={onUndo}>
+        <Undo2 size={14} />
+      </IconButton>
+      <IconButton title="Redo" disabled={!canRedo} onClick={onRedo}>
+        <Redo2 size={14} />
+      </IconButton>
+
       {connection && (
         <Button variant="ghost" onClick={onDisconnect}>
           <Unplug size={14} /> Disconnect
         </Button>
       )}
 
+      <IconButton title="Settings" onClick={onOpenSettings}>
+        <Settings size={15} />
+      </IconButton>
       <IconButton
         title={`Theme: ${theme}`}
         onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}

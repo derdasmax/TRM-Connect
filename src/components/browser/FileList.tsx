@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { formatBytes, formatDate, permissionsToString } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { isTypingTarget } from "../../lib/dom";
 import { iconForEntry } from "../../lib/fileIcons";
 import type { DirEntry } from "../../lib/types";
 import type { PaneController } from "../../hooks/usePane";
@@ -19,6 +20,7 @@ interface FileListProps {
   pane: PaneController;
   onOpen: (entry: DirEntry) => void;
   onContextMenu: (entry: DirEntry | null, x: number, y: number) => void;
+  onQuickLook: (entry: DirEntry) => void;
   showPermissions?: boolean;
   dropHighlight?: boolean;
 }
@@ -45,8 +47,9 @@ interface DragState {
   lastClientY: number;
 }
 
-export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHighlight }: FileListProps) {
+export function FileList({ pane, onOpen, onContextMenu, onQuickLook, showPermissions, dropHighlight }: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const hoveredRef = useRef(false);
   const virtualizer = useVirtualizer({
     count: pane.entries.length,
     getScrollElement: () => parentRef.current,
@@ -113,6 +116,19 @@ export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHig
   }, [applyDragSelection]);
 
   useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.code !== "Space" || !hoveredRef.current || isTypingTarget(e.target)) return;
+      if (pane.selection.size !== 1) return;
+      const entry = pane.entries.find((en) => pane.selection.has(en.path));
+      if (!entry || entry.is_dir) return;
+      e.preventDefault();
+      onQuickLook(entry);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pane.selection, pane.entries, onQuickLook]);
+
+  useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       const drag = dragRef.current;
       if (!drag) return;
@@ -177,6 +193,8 @@ export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHig
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) beginDrag(e);
       }}
+      onMouseEnter={() => (hoveredRef.current = true)}
+      onMouseLeave={() => (hoveredRef.current = false)}
     >
       {pane.loading && pane.entries.length === 0 && (
         <div className="space-y-1 p-2">
@@ -218,7 +236,7 @@ export function FileList({ pane, onOpen, onContextMenu, showPermissions, dropHig
                 else pane.toggleSelect(entry.path, e.metaKey || e.ctrlKey);
                 lastClickedRef.current = entry.path;
               }}
-              onDoubleClick={() => onOpen(entry)}
+              onDoubleClick={() => (entry.is_dir ? onOpen(entry) : onQuickLook(entry))}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

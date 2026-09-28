@@ -58,6 +58,18 @@ pub fn run() {
                                 }),
                             );
                         }
+                        Ok(EngineEvent::ChecksumComputed { task_id, checksum }) => {
+                            let _ = handle.emit(
+                                "transfer://checksum",
+                                serde_json::json!({
+                                    "taskId": task_id,
+                                    "checksum": checksum,
+                                }),
+                            );
+                        }
+                        Ok(EngineEvent::QueueReordered) => {
+                            let _ = handle.emit("transfer://queue-reordered", ());
+                        }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
@@ -79,14 +91,20 @@ pub fn run() {
             commands::browse::remote_mkdir,
             commands::browse::remote_remove_file,
             commands::browse::remote_remove_dir,
+            commands::browse::remote_remove_empty_dir,
             commands::browse::remote_rename,
             commands::browse::remote_chmod,
+            commands::browse::remote_stat,
+            commands::browse::quick_look_remote,
+            commands::browse::read_text_preview,
             commands::browse::list_local_dir,
             commands::browse::local_mkdir,
             commands::browse::local_remove_file,
             commands::browse::local_remove_dir,
+            commands::browse::local_remove_empty_dir,
             commands::browse::local_rename,
             commands::browse::local_home_dir,
+            commands::browse::local_stat,
             commands::transfer::enqueue_download,
             commands::transfer::enqueue_upload,
             commands::transfer::list_transfers,
@@ -96,6 +114,10 @@ pub fn run() {
             commands::transfer::pause_all_transfers,
             commands::transfer::resume_all_transfers,
             commands::transfer::cancel_all_transfers,
+            commands::transfer::reorder_transfer,
+            commands::transfer::prioritize_transfer,
+            commands::transfer::set_global_bandwidth_limit,
+            commands::transfer::set_transfer_bandwidth_limit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

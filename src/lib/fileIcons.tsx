@@ -74,3 +74,27 @@ export function iconForEntry(entry: DirEntry): IconSpec {
   const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
   return EXT_MAP[ext] ?? DEFAULT_FILE;
 }
+
+export type PreviewKind = "image" | "pdf" | "text" | "unsupported";
+
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "avif"]);
+const TEXT_EXTS = new Set([
+  "txt", "md", "log", "json", "ts", "tsx", "js", "jsx", "mjs", "rs", "py", "go", "rb", "php", "java", "kt",
+  "swift", "c", "h", "cpp", "hpp", "cs", "html", "css", "scss", "less", "vue", "sql", "yml", "yaml", "toml",
+  "xml", "sh", "bash", "zsh", "ps1", "csv", "tsv", "conf", "ini", "env", "gitignore", "dockerfile",
+]);
+
+/** Which Quick Look renderer applies to this entry, based on its extension. */
+export function previewKindFor(entry: DirEntry): PreviewKind {
+  if (entry.is_dir) return "unsupported";
+  const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
+  if (IMAGE_EXTS.has(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  if (TEXT_EXTS.has(ext)) return "text";
+  // A dotfile with no further extension (.bashrc, .gitconfig, .profile, ...)
+  // has `ext` equal to its own name minus the leading dot - these are almost
+  // always plain-text config, so default them to the text preview too.
+  const name = entry.name.toLowerCase();
+  if (name.startsWith(".") && ext === name.slice(1)) return "text";
+  return "unsupported";
+}

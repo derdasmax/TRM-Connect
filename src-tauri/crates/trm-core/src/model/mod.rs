@@ -223,6 +223,21 @@ pub enum TransferStatus {
     Cancelled,
 }
 
+/// Outcome of optional post-transfer checksum verification. `None` on the
+/// task means verification wasn't requested.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChecksumStatus {
+    /// Source and destination hashes matched.
+    Verified,
+    /// Hashes were computed on both ends but did not match.
+    Mismatch,
+    /// Requested, but the protocol (FTP/FTPS) has no way to hash remotely.
+    Unsupported,
+    /// Requested, but computing one side's hash failed.
+    Error,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferTask {
     pub id: String,
@@ -237,4 +252,12 @@ pub struct TransferTask {
     pub mode: TransferMode,
     pub started_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    /// Bandwidth cap for this task alone, in bytes/sec; `0` = unlimited
+    /// (still subject to the engine's global limit).
+    #[serde(default)]
+    pub speed_limit_bps: u64,
+    #[serde(default)]
+    pub verify_checksum: bool,
+    #[serde(default)]
+    pub checksum: Option<ChecksumStatus>,
 }

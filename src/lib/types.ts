@@ -54,6 +54,7 @@ export interface DirEntry {
 export type TransferDirection = "upload" | "download";
 export type TransferStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
 export type TransferMode = "auto" | "binary" | "text";
+export type ChecksumStatus = "verified" | "mismatch" | "unsupported" | "error";
 
 export interface TransferTask {
   id: string;
@@ -68,6 +69,9 @@ export interface TransferTask {
   mode: TransferMode;
   started_at: string | null;
   updated_at: string;
+  speed_limit_bps: number;
+  verify_checksum: boolean;
+  checksum: ChecksumStatus | null;
 }
 
 export interface ConnectionInfo {
@@ -89,6 +93,11 @@ export interface TransferStatusEvent {
   taskId: string;
   status: TransferStatus;
   error: string | null;
+}
+
+export interface TransferChecksumEvent {
+  taskId: string;
+  checksum: ChecksumStatus;
 }
 
 export function emptySecret(): SecretField {

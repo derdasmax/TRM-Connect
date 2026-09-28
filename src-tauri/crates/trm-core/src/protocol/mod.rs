@@ -11,8 +11,10 @@ pub mod ssh_session;
 pub mod ftp;
 
 use crate::model::{DirEntry, Protocol, SiteProfile, TransferMode};
+use crate::throttle::RateLimiter;
 use async_trait::async_trait;
 use std::path::Path;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
@@ -44,6 +46,10 @@ pub struct TransferControl {
     pub cancel: CancellationToken,
     pub pause: tokio::sync::watch::Receiver<bool>,
     pub progress_tx: UnboundedSender<u64>,
+    /// Bandwidth limiters this transfer must respect: the engine-wide cap
+    /// and this task's own cap. Both default to unlimited (rate 0).
+    pub global_limiter: Arc<RateLimiter>,
+    pub task_limiter: Arc<RateLimiter>,
 }
 
 impl TransferControl {
@@ -67,6 +73,13 @@ impl TransferControl {
             }
         }
     }
+
+    /// Paces the transfer to both the global and per-task bandwidth caps.
+    /// Call once per chunk, after reading/writing `bytes` of it.
+    pub async fn throttle(&self, bytes: u64) {
+        self.global_limiter.acquire(bytes).await;
+        self.task_limiter.acquire(bytes).await;
+    }
 }
 
 pub const CHUNK_SIZE: usize = 256 * 1024;
@@ -79,6 +92,16 @@ pub trait FileTransferClient: Send {
     async fn mkdir(&mut self, path: &str) -> Result<(), ProtocolError>;
     async fn remove_file(&mut self, path: &str) -> Result<(), ProtocolError>;
     async fn remove_dir(&mut self, path: &str) -> Result<(), ProtocolError>;
+
+    /// Removes a directory only if it's empty. Defaults to `remove_dir`,
+    /// which is already non-recursive for SFTP (SFTP `RMDIR`) and FTP
+    /// (`RMD`); SCP overrides this since its `remove_dir` shells out to
+    /// `rm -rf`. Used to undo a `mkdir` without risking user data added
+    /// to the folder afterward.
+    async fn remove_empty_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
+        self.remove_dir(path).await
+    }
+
     async fn rename(&mut self, from: &str, to: &str) -> Result<(), ProtocolError>;
 
     /// `Err(Unsupported)` on protocols without a permissions model (FTP/FTPS).
@@ -101,6 +124,14 @@ pub trait FileTransferClient: Send {
     ) -> Result<u64, ProtocolError>;
 
     async fn disconnect(&mut self) -> Result<(), ProtocolError>;
+
+    /// Computes a SHA-256 hex digest of the remote file for post-transfer
+    /// verification. `Ok(None)` means this protocol has no way to hash
+    /// remotely (FTP/FTPS); SSH-based protocols override this to run
+    /// `sha256sum`/`shasum` on the remote host.
+    async fn checksum(&mut self, _path: &str) -> Result<Option<String>, ProtocolError> {
+        Ok(None)
+    }
 
     /// SSH-based protocols (SFTP, SCP) return the server host key fingerprint
     /// observed during the handshake and whether it matched the profile's

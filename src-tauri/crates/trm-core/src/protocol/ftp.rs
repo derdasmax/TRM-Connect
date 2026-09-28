@@ -195,6 +195,7 @@ impl FileTransferClient for FtpClient {
             }
             local.write_all(&buf[..n]).await?;
             total += n as u64;
+            control.throttle(n as u64).await;
             let _ = control.progress_tx.send(total);
         }
         local.flush().await?;
@@ -221,6 +222,7 @@ impl FileTransferClient for FtpClient {
             }
             stream.write_all(&buf[..n]).await?;
             total += n as u64;
+            control.throttle(n as u64).await;
             let _ = control.progress_tx.send(total);
         }
         self.ftp.finalize_put_stream(stream).await.map_err(ftp_err)?;

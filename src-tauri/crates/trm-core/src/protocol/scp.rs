@@ -36,27 +36,7 @@ async fn exec_capture(
     ssh: &Handle<ssh_session::Handler>,
     command: &str,
 ) -> Result<(Vec<u8>, Option<u32>), ProtocolError> {
-    let mut channel = ssh
-        .channel_open_session()
-        .await
-        .map_err(|e| ProtocolError::Connect(e.to_string()))?;
-    channel
-        .exec(true, command.as_bytes())
-        .await
-        .map_err(|e| ProtocolError::Remote(e.to_string()))?;
-
-    let mut stdout = Vec::new();
-    let mut exit_status = None;
-    loop {
-        match channel.wait().await {
-            Some(ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
-            Some(ChannelMsg::ExtendedData { .. }) => {}
-            Some(ChannelMsg::ExitStatus { exit_status: code }) => exit_status = Some(code),
-            Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
-            _ => {}
-        }
-    }
-    Ok((stdout, exit_status))
+    ssh_session::exec_capture(ssh, command).await
 }
 
 async fn exec_ok(ssh: &Handle<ssh_session::Handler>, command: &str) -> Result<(), ProtocolError> {
@@ -207,12 +187,20 @@ impl FileTransferClient for ScpClient {
         exec_ok(&self.ssh, &format!("rm -rf -- {}", shell_quote(path))).await
     }
 
+    async fn remove_empty_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
+        exec_ok(&self.ssh, &format!("rmdir -- {}", shell_quote(path))).await
+    }
+
     async fn rename(&mut self, from: &str, to: &str) -> Result<(), ProtocolError> {
         exec_ok(&self.ssh, &format!("mv -- {} {}", shell_quote(from), shell_quote(to))).await
     }
 
     async fn chmod(&mut self, path: &str, mode: u32) -> Result<(), ProtocolError> {
         exec_ok(&self.ssh, &format!("chmod {:o} -- {}", mode, shell_quote(path))).await
+    }
+
+    async fn checksum(&mut self, path: &str) -> Result<Option<String>, ProtocolError> {
+        ssh_session::sha256_of(&self.ssh, path).await
     }
 
     async fn download(
@@ -274,6 +262,7 @@ impl FileTransferClient for ScpClient {
                     pending.drain(..take);
                     remaining -= take as u64;
                     total += take as u64;
+                    control.throttle(take as u64).await;
                     let _ = control.progress_tx.send(total);
                 }
                 file.flush().await?;
@@ -341,6 +330,7 @@ impl FileTransferClient for ScpClient {
             }
             channel.data(&buf[..n]).await.map_err(|e| ProtocolError::Remote(e.to_string()))?;
             total += n as u64;
+            control.throttle(n as u64).await;
             let _ = control.progress_tx.send(total);
         }
         // Trailing status byte.

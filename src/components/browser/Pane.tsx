@@ -12,9 +12,11 @@ import {
   FolderOpen,
   PenLine,
   ShieldCheck,
+  Eye,
 } from "lucide-react";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileList } from "./FileList";
+import { QuickLookModal } from "./QuickLookModal";
 import { Button, IconButton } from "../ui/Button";
 import { Input } from "../ui/Field";
 import { Modal } from "../ui/Modal";
@@ -40,6 +42,7 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<DirEntry | null>(null);
   const [chmodTarget, setChmodTarget] = useState<DirEntry | null>(null);
+  const [quickLookEntry, setQuickLookEntry] = useState<DirEntry | null>(null);
   const [draft, setDraft] = useState("");
 
   const menuItems: MenuItem[] | null = menu
@@ -50,6 +53,12 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
             icon: FolderOpen,
             onClick: () => pane.navigateInto(menu.entry as DirEntry),
             disabled: !menu.entry.is_dir,
+          },
+          {
+            label: "Quick Look",
+            icon: Eye,
+            onClick: () => setQuickLookEntry(menu.entry),
+            disabled: menu.entry.is_dir,
           },
           {
             label: "Rename",
@@ -129,6 +138,7 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
         pane={pane}
         onOpen={pane.navigateInto}
         onContextMenu={(entry, x, y) => setMenu({ entry, x, y })}
+        onQuickLook={setQuickLookEntry}
         showPermissions={pane.kind === "remote"}
         dropHighlight={dropHighlight}
       />
@@ -201,6 +211,12 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
           }}
         />
       )}
+
+      <QuickLookModal
+        entry={quickLookEntry}
+        connectionId={pane.kind === "remote" ? pane.connectionId : null}
+        onClose={() => setQuickLookEntry(null)}
+      />
     </div>
   );
 }

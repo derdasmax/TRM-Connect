@@ -4,3 +4,4 @@ pub mod protocol;
 pub mod storage;
 pub mod transfer;
 pub mod local;
+pub mod throttle;

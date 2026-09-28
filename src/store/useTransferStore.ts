@@ -1,16 +1,24 @@
 import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauri } from "../lib/api";
-import type { TransferStatusEvent, TransferProgressEvent, TransferTask } from "../lib/types";
+import type { TransferStatusEvent, TransferProgressEvent, TransferChecksumEvent, TransferTask } from "../lib/types";
 
 export interface TransferProgressExtra {
   speedBps: number;
   etaSecs: number | null;
 }
 
+export interface EnqueueOptions {
+  speedLimitBps?: number;
+  verifyChecksum?: boolean;
+}
+
 interface TransferState {
   tasks: Record<string, TransferTask>;
   order: string[];
+  /** Ids of not-yet-started ("queued") tasks, in the order they'll run next - mirrors
+   *  the backend's reorderable deque so drag-and-drop reordering has something to show. */
+  queueOrder: string[];
   progressExtra: Record<string, TransferProgressExtra>;
   // A fast (or already-finished-by-the-time-we-look) transfer can have its
   // progress/status events arrive over the IPC event channel before the
@@ -20,14 +28,26 @@ interface TransferState {
   pendingProgress: Record<string, TransferProgressEvent>;
   pendingStatus: Record<string, TransferStatusEvent>;
   init: () => Promise<void>;
-  enqueueUpload: (connectionId: string, localPath: string, remotePath: string) => Promise<void>;
-  enqueueDownload: (connectionId: string, remotePath: string, localPath: string) => Promise<void>;
+  enqueueUpload: (connectionId: string, localPath: string, remotePath: string, opts?: EnqueueOptions) => Promise<void>;
+  enqueueDownload: (
+    connectionId: string,
+    remotePath: string,
+    localPath: string,
+    opts?: EnqueueOptions,
+  ) => Promise<void>;
   pause: (taskId: string) => Promise<void>;
   resume: (taskId: string) => Promise<void>;
   cancel: (taskId: string) => Promise<void>;
   pauseAll: () => Promise<void>;
   resumeAll: () => Promise<void>;
   cancelAll: () => Promise<void>;
+  /** Reorders a still-queued task to `newIndex` within the queued subset (drag-and-drop). */
+  reorderQueued: (taskId: string, newIndex: number) => Promise<void>;
+  /** Applies a full drag-and-drop reorder of the queued subset in one go. */
+  reorderQueueTo: (newOrder: string[]) => void;
+  /** Moves a still-queued task to run next. */
+  prioritizeQueued: (taskId: string) => Promise<void>;
+  setBandwidthLimit: (taskId: string, bytesPerSec: number) => Promise<void>;
   /** @internal used by enqueueUpload/enqueueDownload */
   insertTask: (task: TransferTask) => void;
 }
@@ -42,6 +62,7 @@ function omit<T extends Record<string, unknown>>(record: T, key: string): T {
 export const useTransferStore = create<TransferState>((set, get) => ({
   tasks: {},
   order: [],
+  queueOrder: [],
   progressExtra: {},
   pendingProgress: {},
   pendingStatus: {},
@@ -54,6 +75,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     set({
       tasks: Object.fromEntries(tasks.map((t) => [t.id, t])),
       order: tasks.map((t) => t.id),
+      queueOrder: tasks.filter((t) => t.status === "queued").map((t) => t.id),
     });
 
     if (!isTauri()) return;
@@ -80,16 +102,33 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       const p = event.payload;
       set((state) => {
         const existing = state.tasks[p.taskId];
-        if (!existing) return { pendingStatus: { ...state.pendingStatus, [p.taskId]: p } };
+        const queueOrder = p.status === "queued" ? state.queueOrder : state.queueOrder.filter((id) => id !== p.taskId);
+        if (!existing) return { pendingStatus: { ...state.pendingStatus, [p.taskId]: p }, queueOrder };
         return {
           tasks: { ...state.tasks, [p.taskId]: { ...existing, status: p.status, error: p.error } },
+          queueOrder,
         };
+      });
+    });
+
+    await listen<TransferChecksumEvent>("transfer://checksum", (event) => {
+      const p = event.payload;
+      set((state) => {
+        const existing = state.tasks[p.taskId];
+        if (!existing) return {};
+        return { tasks: { ...state.tasks, [p.taskId]: { ...existing, checksum: p.checksum } } };
       });
     });
   },
 
-  enqueueUpload: async (connectionId, localPath, remotePath) => {
-    const taskId = await api.enqueueUpload(connectionId, localPath, remotePath);
+  enqueueUpload: async (connectionId, localPath, remotePath, opts) => {
+    const taskId = await api.enqueueUpload(
+      connectionId,
+      localPath,
+      remotePath,
+      opts?.speedLimitBps,
+      opts?.verifyChecksum,
+    );
     const now = new Date().toISOString();
     get().insertTask({
       id: taskId,
@@ -104,11 +143,20 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       mode: "auto",
       started_at: null,
       updated_at: now,
+      speed_limit_bps: opts?.speedLimitBps ?? 0,
+      verify_checksum: opts?.verifyChecksum ?? false,
+      checksum: null,
     });
   },
 
-  enqueueDownload: async (connectionId, remotePath, localPath) => {
-    const taskId = await api.enqueueDownload(connectionId, remotePath, localPath);
+  enqueueDownload: async (connectionId, remotePath, localPath, opts) => {
+    const taskId = await api.enqueueDownload(
+      connectionId,
+      remotePath,
+      localPath,
+      opts?.speedLimitBps,
+      opts?.verifyChecksum,
+    );
     const now = new Date().toISOString();
     get().insertTask({
       id: taskId,
@@ -123,12 +171,18 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       mode: "auto",
       started_at: null,
       updated_at: now,
+      speed_limit_bps: opts?.speedLimitBps ?? 0,
+      verify_checksum: opts?.verifyChecksum ?? false,
+      checksum: null,
     });
   },
 
   pause: (taskId) => api.pauseTransfer(taskId),
   resume: (taskId) => api.resumeTransfer(taskId),
-  cancel: (taskId) => api.cancelTransfer(taskId),
+  cancel: (taskId) => {
+    set((state) => ({ queueOrder: state.queueOrder.filter((id) => id !== taskId) }));
+    return api.cancelTransfer(taskId);
+  },
   pauseAll: async () => {
     await api.pauseAllTransfers();
   },
@@ -136,7 +190,40 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     await api.resumeAllTransfers();
   },
   cancelAll: async () => {
+    set({ queueOrder: [] });
     await api.cancelAllTransfers();
+  },
+
+  reorderQueued: async (taskId, newIndex) => {
+    set((state) => {
+      const without = state.queueOrder.filter((id) => id !== taskId);
+      const clamped = Math.max(0, Math.min(newIndex, without.length));
+      without.splice(clamped, 0, taskId);
+      return { queueOrder: without };
+    });
+    await api.reorderTransfer(taskId, newIndex);
+  },
+
+  prioritizeQueued: async (taskId) => {
+    set((state) => ({ queueOrder: [taskId, ...state.queueOrder.filter((id) => id !== taskId)] }));
+    await api.prioritizeTransfer(taskId);
+  },
+
+  reorderQueueTo: (newOrder) => {
+    set({ queueOrder: newOrder });
+    // Sequential reinsertion at each target index converges the backend
+    // deque to exactly `newOrder`, whether the drag moved one item or
+    // several - no need to diff which item moved.
+    newOrder.forEach((id, i) => void api.reorderTransfer(id, i));
+  },
+
+  setBandwidthLimit: async (taskId, bytesPerSec) => {
+    set((state) => {
+      const existing = state.tasks[taskId];
+      if (!existing) return {};
+      return { tasks: { ...state.tasks, [taskId]: { ...existing, speed_limit_bps: bytesPerSec } } };
+    });
+    await api.setTransferBandwidthLimit(taskId, bytesPerSec);
   },
 
   // Internal: inserts an optimistically-created task, immediately applying
@@ -153,6 +240,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       return {
         tasks: { ...state.tasks, [task.id]: merged },
         order: [...state.order, task.id],
+        queueOrder: merged.status === "queued" ? [...state.queueOrder, task.id] : state.queueOrder,
         progressExtra: progress
           ? { ...state.progressExtra, [task.id]: { speedBps: progress.speedBps, etaSecs: progress.etaSecs } }
           : state.progressExtra,

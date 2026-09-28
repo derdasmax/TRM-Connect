@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Plug, Server, ShieldCheck, X } from "lucide-react";
 import { TopBar } from "./components/layout/TopBar";
+import { SplashScreen } from "./components/layout/SplashScreen";
 import { Pane } from "./components/browser/Pane";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
 import { SiteManagerModal } from "./components/sitemanager/SiteManagerModal";
@@ -29,6 +30,8 @@ export default function App() {
   const [quickConnectOpen, setQuickConnectOpen] = useState(false);
   const [hostKeyNotice, setHostKeyNotice] = useState<{ fingerprint: string; canPin: boolean } | null>(null);
   const [dragOverRemote, setDragOverRemote] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   const remotePaneRef = useRef<HTMLDivElement>(null);
   const { load: loadSites, save: saveSite } = useSitesStore();
@@ -36,12 +39,12 @@ export default function App() {
 
   useEffect(() => {
     initSettingsEffects();
-    void loadSites();
-    void initTransfers();
-    api
-      .localHomeDir()
-      .then(setHomeDir)
-      .catch(() => {});
+    // The splash overlay never gates this - real init starts immediately and
+    // runs underneath it; `appReady` only tells the splash when it's allowed
+    // to close.
+    Promise.allSettled([loadSites(), initTransfers(), api.localHomeDir().then(setHomeDir)]).then(() =>
+      setAppReady(true),
+    );
   }, [loadSites, initTransfers]);
 
   const localPane = usePane("local", null, homeDir || "/");
@@ -124,6 +127,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-surface-0 text-zinc-200">
+      {showSplash && <SplashScreen appReady={appReady} onExited={() => setShowSplash(false)} />}
+
       <TopBar
         connection={connection}
         connecting={connecting}

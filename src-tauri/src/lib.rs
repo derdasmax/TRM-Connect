@@ -89,6 +89,7 @@ pub fn run() {
             commands::connection::ping_site,
             commands::portable::is_portable_mode,
             commands::portable::set_portable_mode,
+            commands::sync::diff_directories,
             commands::browse::list_remote_dir,
             commands::browse::remote_canonicalize,
             commands::browse::remote_mkdir,

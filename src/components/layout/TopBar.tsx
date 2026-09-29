@@ -1,4 +1,4 @@
-import { Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
+import { FolderSync, Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
 import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
@@ -18,6 +18,7 @@ interface TopBarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onSyncDirectories?: () => void;
 }
 
 export function TopBar({
@@ -33,6 +34,7 @@ export function TopBar({
   canRedo,
   onUndo,
   onRedo,
+  onSyncDirectories,
 }: TopBarProps) {
   const { theme, setTheme } = useSettingsStore();
 
@@ -88,6 +90,12 @@ export function TopBar({
       <IconButton title="Redo" disabled={!canRedo} onClick={onRedo}>
         <Redo2 size={14} />
       </IconButton>
+
+      {connection && onSyncDirectories && (
+        <IconButton title="Sync directories" onClick={onSyncDirectories}>
+          <FolderSync size={14} />
+        </IconButton>
+      )}
 
       {connection && (
         <Button variant="ghost" onClick={onDisconnect}>

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ConnectionInfo, DirEntry, SiteProfile, TransferTask } from "./types";
+import type { ConnectionInfo, DirEntry, SiteProfile, SyncDiffResult, TransferTask } from "./types";
 
 // Thin, typed wrappers around the Tauri commands in src-tauri/src/commands.
 // Every function name matches its #[tauri::command] counterpart 1:1.
@@ -49,6 +49,10 @@ export const api = {
   writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
   quickLookSaveRemote: (connectionId: string, localPath: string, remotePath: string) =>
     invoke<void>("quick_look_save_remote", { connectionId, localPath, remotePath }),
+
+  // -- Directory sync --------------------------------------------------
+  diffDirectories: (connectionId: string, localRoot: string, remoteRoot: string) =>
+    invoke<SyncDiffResult>("diff_directories", { connectionId, localRoot, remoteRoot }),
 
   // -- Local browsing ----------------------------------------------------
   listLocalDir: (path: string) => invoke<DirEntry[]>("list_local_dir", { path }),

@@ -51,6 +51,23 @@ export interface DirEntry {
   group: string | null;
 }
 
+export type SyncStatus = "local_only" | "remote_only" | "differs";
+
+export interface SyncEntry {
+  relative_path: string;
+  is_dir: boolean;
+  status: SyncStatus;
+  local_size: number | null;
+  local_modified: string | null;
+  remote_size: number | null;
+  remote_modified: string | null;
+}
+
+export interface SyncDiffResult {
+  entries: SyncEntry[];
+  same_count: number;
+}
+
 export type TransferDirection = "upload" | "download";
 export type TransferStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
 export type TransferMode = "auto" | "binary" | "text";

@@ -5,6 +5,7 @@ import { TopBar } from "../layout/TopBar";
 import { Pane } from "../browser/Pane";
 import { DragGhost, type DragGhostInfo } from "../browser/DragGhost";
 import { ConflictDialog } from "../transfers/ConflictDialog";
+import { SyncDirectoriesDialog } from "../sync/SyncDirectoriesDialog";
 import { SiteManagerModal } from "../sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "../sitemanager/QuickConnectModal";
 import { ErrorNotice } from "../common/ErrorNotice";
@@ -50,6 +51,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   const [hostKeyNotice, setHostKeyNotice] = useState<{ fingerprint: string; canPin: boolean } | null>(null);
   const [dragOverRemote, setDragOverRemote] = useState(false);
   const [dragGhost, setDragGhost] = useState<DragGhostInfo | null>(null);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sessionRestoreDismissed, setSessionRestoreDismissed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -444,6 +446,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         canRedo={canRedo}
         onUndo={() => void handleUndo()}
         onRedo={() => void handleRedo()}
+        onSyncDirectories={() => setSyncDialogOpen(true)}
       />
 
       {connectError && (
@@ -602,6 +605,22 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         remainingCount={conflictAware.remainingCount}
         onResolve={(resolution, applyToAll) => void conflictAware.resolve(resolution, applyToAll)}
       />
+      {connection && (
+        <SyncDirectoriesDialog
+          open={syncDialogOpen}
+          onClose={() => setSyncDialogOpen(false)}
+          connectionId={connection.connection_id}
+          localRoot={localPane.path}
+          remoteRoot={remotePane.path}
+          localSep={localPane.sep}
+          remoteSep={remotePane.sep}
+          siteName={currentSiteName}
+          onSynced={() => {
+            localPane.refresh();
+            remotePane.refresh();
+          }}
+        />
+      )}
       <DragGhost info={dragGhost} />
     </div>
   );

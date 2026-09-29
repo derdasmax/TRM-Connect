@@ -3,6 +3,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Loader2, Plug, RotateCcw, Server, ShieldCheck, X } from "lucide-react";
 import { TopBar } from "../layout/TopBar";
 import { Pane } from "../browser/Pane";
+import { DragGhost, type DragGhostInfo } from "../browser/DragGhost";
 import { ConflictDialog } from "../transfers/ConflictDialog";
 import { SiteManagerModal } from "../sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "../sitemanager/QuickConnectModal";
@@ -46,6 +47,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   const [quickConnectOpen, setQuickConnectOpen] = useState(false);
   const [hostKeyNotice, setHostKeyNotice] = useState<{ fingerprint: string; canPin: boolean } | null>(null);
   const [dragOverRemote, setDragOverRemote] = useState(false);
+  const [dragGhost, setDragGhost] = useState<DragGhostInfo | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sessionRestoreDismissed, setSessionRestoreDismissed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -287,23 +289,51 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   useEffect(() => {
     if (!isTauri()) return;
     let unlisten: (() => void) | undefined;
+    // Bumped on every enter/leave/drop so a stat lookup kicked off for one
+    // drag can't land after that drag has already ended (fast re-drag, or a
+    // drop that fires before sizes resolve).
+    let dragToken = 0;
+
     getCurrentWebview()
       .onDragDropEvent((event) => {
         const payload = event.payload;
         if (payload.type === "leave") {
+          dragToken++;
           setDragOverRemote(false);
+          setDragGhost(null);
           return;
         }
+
         const rect = remotePaneRef.current?.getBoundingClientRect();
         const ratio = window.devicePixelRatio || 1;
         const x = payload.position.x / ratio;
         const y = payload.position.y / ratio;
         const over = !!rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 
-        if (payload.type === "over") {
+        if (payload.type === "enter") {
+          const token = ++dragToken;
+          const paths = payload.paths;
           setDragOverRemote(over);
+          setDragGhost({
+            x,
+            y,
+            name: paths.length === 1 ? basename(paths[0]) : `${paths.length} items`,
+            count: paths.length,
+            totalSize: null,
+            armed: over,
+          });
+          void Promise.all(paths.map((p) => api.localStat(p).catch(() => null))).then((stats) => {
+            if (token !== dragToken) return;
+            const totalSize = stats.reduce((sum, s) => sum + (s?.size ?? 0), 0);
+            setDragGhost((prev) => (prev ? { ...prev, totalSize } : prev));
+          });
+        } else if (payload.type === "over") {
+          setDragOverRemote(over);
+          setDragGhost((prev) => (prev ? { ...prev, x, y, armed: over } : prev));
         } else if (payload.type === "drop") {
+          dragToken++;
           setDragOverRemote(false);
+          setDragGhost(null);
           if (over && connection) {
             const targets = payload.paths.map((path) => ({
               sourcePath: path,
@@ -542,6 +572,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         remainingCount={conflictAware.remainingCount}
         onResolve={(resolution, applyToAll) => void conflictAware.resolve(resolution, applyToAll)}
       />
+      <DragGhost info={dragGhost} />
     </div>
   );
 }

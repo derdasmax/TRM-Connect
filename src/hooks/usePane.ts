@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { joinPath, parentPath } from "../lib/format";
-import { useUndoStore } from "../store/useUndoStore";
+import type { UndoAction } from "../store/useUndoStore";
 import type { DirEntry } from "../lib/types";
 
 export type SortKey = "name" | "size" | "modified";
@@ -44,7 +44,15 @@ function sepFor(path: string): "/" | "\\" {
   return /^[a-zA-Z]:\\/.test(path) || path.includes("\\") ? "\\" : "/";
 }
 
-export function usePane(kind: PaneKind, connectionId: string | null, initialPath: string): PaneController {
+export function usePane(
+  kind: PaneKind,
+  connectionId: string | null,
+  initialPath: string,
+  /** Reports invertible actions (rename/mkdir) to the owning tab's own undo
+   *  stack - a plain callback rather than importing a store directly, so
+   *  each connection tab can keep a fully independent undo history. */
+  pushUndo: (action: UndoAction) => void = () => {},
+): PaneController {
   const [path, setPathState] = useState(initialPath);
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -143,10 +151,10 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
       const full = joinPath(path, name, sep);
       if (kind === "local") await api.localMkdir(full);
       else await api.remoteMkdir(connectionId as string, full);
-      useUndoStore.getState().push({ type: "mkdir", kind, connectionId, path: full });
+      pushUndo({ type: "mkdir", kind, connectionId, path: full });
       refresh();
     },
-    [kind, connectionId, path, sep, refresh],
+    [kind, connectionId, path, sep, refresh, pushUndo],
   );
 
   const removeSelected = useCallback(async () => {
@@ -178,10 +186,10 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
       const to = joinPath(parentPath(p, sep), newName, sep);
       if (kind === "local") await api.localRename(p, to);
       else await api.remoteRename(connectionId as string, p, to);
-      useUndoStore.getState().push({ type: "rename", kind, connectionId, from: p, to });
+      pushUndo({ type: "rename", kind, connectionId, from: p, to });
       refresh();
     },
-    [kind, connectionId, sep, refresh],
+    [kind, connectionId, sep, refresh, pushUndo],
   );
 
   const chmod =

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, type UseBoundStore, type StoreApi } from "zustand";
 import { api } from "../lib/api";
 
 export type UndoAction =
@@ -13,6 +13,8 @@ interface UndoState {
   undo: () => Promise<"local" | "remote" | null>;
   redo: () => Promise<"local" | "remote" | null>;
 }
+
+export type UndoStore = UseBoundStore<StoreApi<UndoState>>;
 
 async function applyInverse(action: UndoAction): Promise<void> {
   if (action.type === "rename") {
@@ -36,27 +38,31 @@ async function applyForward(action: UndoAction): Promise<void> {
   }
 }
 
-export const useUndoStore = create<UndoState>((set, get) => ({
-  undoStack: [],
-  redoStack: [],
+/** Creates a fresh, independent undo/redo store. Each connection tab owns
+ *  one, so undoing in one tab never touches another tab's history. */
+export function createUndoStore(): UndoStore {
+  return create<UndoState>((set, get) => ({
+    undoStack: [],
+    redoStack: [],
 
-  push: (action) => set((s) => ({ undoStack: [...s.undoStack, action], redoStack: [] })),
+    push: (action) => set((s) => ({ undoStack: [...s.undoStack, action], redoStack: [] })),
 
-  undo: async () => {
-    const stack = get().undoStack;
-    if (stack.length === 0) return null;
-    const action = stack[stack.length - 1];
-    await applyInverse(action);
-    set((s) => ({ undoStack: s.undoStack.slice(0, -1), redoStack: [...s.redoStack, action] }));
-    return action.kind;
-  },
+    undo: async () => {
+      const stack = get().undoStack;
+      if (stack.length === 0) return null;
+      const action = stack[stack.length - 1];
+      await applyInverse(action);
+      set((s) => ({ undoStack: s.undoStack.slice(0, -1), redoStack: [...s.redoStack, action] }));
+      return action.kind;
+    },
 
-  redo: async () => {
-    const stack = get().redoStack;
-    if (stack.length === 0) return null;
-    const action = stack[stack.length - 1];
-    await applyForward(action);
-    set((s) => ({ redoStack: s.redoStack.slice(0, -1), undoStack: [...s.undoStack, action] }));
-    return action.kind;
-  },
-}));
+    redo: async () => {
+      const stack = get().redoStack;
+      if (stack.length === 0) return null;
+      const action = stack[stack.length - 1];
+      await applyForward(action);
+      set((s) => ({ redoStack: s.redoStack.slice(0, -1), undoStack: [...s.undoStack, action] }));
+      return action.kind;
+    },
+  }));
+}

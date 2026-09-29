@@ -16,9 +16,11 @@ interface SplashScreenProps {
 /**
  * A branded splash overlay shown on top of the already-mounting app. The real
  * app underneath starts initializing immediately in parallel - this never
- * gates that work, it only decides how long the overlay itself stays up:
- * at least MIN_DURATION_MS (a deliberate brand moment) and at least until
- * `appReady`, whichever is longer, or immediately on click/keypress/Escape.
+ * gates that work, it only decides how long the overlay itself stays up: at
+ * least MIN_DURATION_MS (a deliberate, non-skippable brand moment) and at
+ * least until `appReady`, whichever is longer. Not user-skippable by design;
+ * the only exception is `prefers-reduced-motion`/the in-app reduce-motion
+ * setting, which is an accessibility accommodation, not a shortcut.
  */
 export function SplashScreen({ appReady, onExited }: SplashScreenProps) {
   const prefersReducedMotion = useReducedMotion();
@@ -28,8 +30,6 @@ export function SplashScreen({ appReady, onExited }: SplashScreenProps) {
   const [exiting, setExiting] = useState(false);
   const startRef = useRef(performance.now());
   const rafRef = useRef<number | null>(null);
-
-  const skip = () => setExiting(true);
 
   useEffect(() => {
     // Respecting reduced-motion means skipping the manufactured 5s brand
@@ -61,17 +61,6 @@ export function SplashScreen({ appReady, onExited }: SplashScreenProps) {
     const t = setTimeout(onExited, reduceMotion ? 0 : 500);
     return () => clearTimeout(t);
   }, [exiting, onExited, reduceMotion]);
-
-  useEffect(() => {
-    const handler = () => skip();
-    window.addEventListener("click", handler);
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("click", handler);
-      window.removeEventListener("keydown", handler);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const letters = BRAND.split("");
 
@@ -150,15 +139,6 @@ export function SplashScreen({ appReady, onExited }: SplashScreenProps) {
             />
           )}
         </motion.div>
-
-        <motion.p
-          initial={reduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: reduceMotion ? 0 : 0.9 }}
-          className="text-[11px] uppercase tracking-[0.2em] text-zinc-500"
-        >
-          Click or press any key to skip
-        </motion.p>
       </div>
     </motion.div>
   );

@@ -15,6 +15,7 @@ import { api, isTauri } from "../../lib/api";
 import { isTypingTarget } from "../../lib/dom";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useSessionStore } from "../../store/useSessionStore";
+import { useRecentPathsStore } from "../../store/useRecentPathsStore";
 import { useSitesStore } from "../../store/useSitesStore";
 import { useToastStore } from "../../store/useToastStore";
 import { useTabsStore } from "../../store/useTabsStore";
@@ -61,7 +62,13 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   // auto-reconnect never fires after the user chose to disconnect.
   const lastConnectRef = useRef<{ profile: SiteProfile; siteId: string | null } | null>(null);
   const remotePathRef = useRef<string>("/");
-  const reconnectPathRef = useRef<string | null>(null);
+  // A directory to jump to once the *next* connection lands - either the
+  // path being resumed after a reconnect, or a specific recent path picked
+  // from the Command Palette. Needed because usePane resets its own path to
+  // its initialPath ("/") the moment the connection id it's given changes,
+  // which would otherwise clobber a plain navigate() call made right after
+  // connecting.
+  const pendingRemotePathRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef(false);
   const reconnectingRef = useRef(false);
   const { save: saveSite } = useSitesStore();
@@ -120,6 +127,17 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection, remotePane.path]);
 
+  // Feeds the Command Palette's global search: jumping straight to a
+  // directory browsed before on this site, not just its root. Only saved
+  // sites get a remembered history - a quick-connect session has no stable
+  // id to key it against.
+  useEffect(() => {
+    if (connection && activeSiteId && remotePane.path) {
+      useRecentPathsStore.getState().recordVisit(activeSiteId, remotePane.path);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection, activeSiteId, remotePane.path]);
+
   // Tracks the remote pane's current path outside of React state so a
   // reconnect (triggered from a plain callback, not a render) can read it
   // without becoming a dependency that would re-run other effects.
@@ -132,9 +150,9 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   // wrong for a reconnect, where the user was mid-directory and expects to
   // land back where they were. Restore it once the new connection lands.
   useEffect(() => {
-    if (connection && reconnectPathRef.current) {
-      remotePane.navigate(reconnectPathRef.current);
-      reconnectPathRef.current = null;
+    if (connection && pendingRemotePathRef.current) {
+      remotePane.navigate(pendingRemotePathRef.current);
+      pendingRemotePathRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection]);
@@ -181,7 +199,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     if (!saved || reconnectingRef.current) return;
     reconnectingRef.current = true;
     reconnectAbortRef.current = false;
-    reconnectPathRef.current = remotePathRef.current;
+    pendingRemotePathRef.current = remotePathRef.current;
     setConnection(null);
     setReconnecting(true);
 
@@ -195,7 +213,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
             ? await api.connectSavedSite(saved.siteId)
             : await api.quickConnect(saved.profile);
           if (reconnectAbortRef.current) {
-            reconnectPathRef.current = null;
+            pendingRemotePathRef.current = null;
             void api.disconnect(info.connection_id).catch(() => {});
             return;
           }
@@ -209,7 +227,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
           return;
         } catch {
           if (attempt === backoffMs.length) {
-            reconnectPathRef.current = null;
+            pendingRemotePathRef.current = null;
             setConnectError("Connection lost. Automatic reconnect failed after several attempts.");
             useToastStore.getState().push({
               kind: "error",
@@ -229,7 +247,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
 
   function cancelReconnect() {
     reconnectAbortRef.current = true;
-    reconnectPathRef.current = null;
+    pendingRemotePathRef.current = null;
     setReconnecting(false);
   }
 
@@ -242,7 +260,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
       openQuickConnect: () => setQuickConnectOpen(true),
       openSiteManager: () => setSiteManagerOpen(true),
       disconnect: () => void handleDisconnect(),
-      connectToSite: (site) => void handleConnect(site, site.id),
+      connectToSite: (site, path) => void handleConnect(site, site.id, path),
       undo: () => void handleUndo(),
       redo: () => void handleRedo(),
       canUndo,
@@ -292,9 +310,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     const site = sites.find((s) => s.id === lastSiteId);
     setSessionRestoreDismissed(true);
     if (!site) return;
-    await handleConnect(site, site.id);
-    const remoteDir = useSessionStore.getState().lastRemoteDir;
-    if (remoteDir) remotePane.navigate(remoteDir);
+    await handleConnect(site, site.id, useSessionStore.getState().lastRemoteDir || undefined);
   }
 
   useEffect(() => {
@@ -366,9 +382,13 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection, remotePane.path, remotePane.sep]);
 
-  async function handleConnect(profile: SiteProfile, siteId: string | null) {
+  async function handleConnect(profile: SiteProfile, siteId: string | null, targetDir?: string) {
     reconnectAbortRef.current = true;
-    reconnectPathRef.current = null;
+    // usePane's own connectionId-change effect resets to "/" the moment the
+    // connection lands, which would otherwise win a race against a plain
+    // navigate() called right after connecting - route the target directory
+    // through the same pending-path mechanism the reconnect flow uses.
+    pendingRemotePathRef.current = targetDir || profile.remote_dir || null;
     setReconnecting(false);
     setConnecting(true);
     setConnectError(null);
@@ -379,7 +399,6 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
       setConnection(info);
       setActiveSiteId(siteId);
       lastConnectRef.current = { profile, siteId };
-      remotePane.navigate(profile.remote_dir || "/");
       if (siteId) useSessionStore.getState().setLastSite(siteId, profile.remote_dir || null);
       if (info.host_key_fingerprint && info.host_key_matched_pinned == null) {
         setHostKeyNotice({ fingerprint: info.host_key_fingerprint, canPin: !!siteId });

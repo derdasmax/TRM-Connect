@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
+  FolderClock,
   History,
   Moon,
   Plug,
@@ -20,6 +21,7 @@ import { useSettingsStore } from "../../store/useSettingsStore";
 import { useSitesStore } from "../../store/useSitesStore";
 import { useTabsStore } from "../../store/useTabsStore";
 import { useUiStore } from "../../store/useUiStore";
+import { useRecentPathsStore } from "../../store/useRecentPathsStore";
 
 interface Command {
   id: string;
@@ -41,6 +43,7 @@ export function CommandPalette() {
   const sites = useSitesStore((s) => s.sites);
   const theme = useSettingsStore((s) => s.theme);
   const actions = useUiStore((s) => s.activeWorkspaceActions);
+  const recentPathsBySite = useRecentPathsStore((s) => s.bySite);
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
@@ -123,11 +126,20 @@ export function CommandPalette() {
           Icon: Server,
           run: () => actions.connectToSite(site),
         });
+        for (const path of recentPathsBySite[site.id] ?? []) {
+          list.push({
+            id: `site-path-${site.id}-${path}`,
+            label: `${site.name}: ${path}`,
+            hint: "Recent path",
+            Icon: FolderClock,
+            run: () => actions.connectToSite(site, path),
+          });
+        }
       }
     }
 
     return list;
-  }, [tabs.length, activeTabId, sites, theme, actions]);
+  }, [tabs.length, activeTabId, sites, theme, actions, recentPathsBySite]);
 
   const filtered = useMemo(() => {
     if (query.trim() === "") return commands;
@@ -199,7 +211,7 @@ export function CommandPalette() {
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Type a command or search connections…"
+                placeholder="Search commands, connections, or recent paths…"
                 className="w-full bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
                 onKeyDown={(e) => {
                   if (e.key === "ArrowDown") {

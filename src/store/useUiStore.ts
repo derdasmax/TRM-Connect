@@ -9,7 +9,7 @@ export interface ActiveWorkspaceActions {
   openQuickConnect: () => void;
   openSiteManager: () => void;
   disconnect: () => void;
-  connectToSite: (site: SiteProfile) => void;
+  connectToSite: (site: SiteProfile, path?: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;

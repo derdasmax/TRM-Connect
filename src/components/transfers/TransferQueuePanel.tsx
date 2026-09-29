@@ -15,7 +15,7 @@ import {
   ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useTransferStore } from "../../store/useTransferStore";
 import { useUiStore } from "../../store/useUiStore";
@@ -38,6 +38,32 @@ function ChecksumBadge({ status }: { status: TransferTask["checksum"] }) {
     <span title={title} className="flex shrink-0">
       <Icon size={12} className={cls} />
     </span>
+  );
+}
+
+const SPARKLINE_SAMPLES = 30;
+
+/** A tiny live speed graph, redrawn as progress events for this task roll
+ *  in - just the last `SPARKLINE_SAMPLES` readings, normalized to the
+ *  window's own peak so a slow transfer's variation is still visible. */
+function SpeedSparkline({ speedBps }: { speedBps: number }) {
+  const [history, setHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    setHistory((h) => [...h, speedBps].slice(-SPARKLINE_SAMPLES));
+  }, [speedBps]);
+
+  if (history.length < 2) return <div className="h-5 w-14 shrink-0" />;
+
+  const max = Math.max(1, ...history);
+  const points = history
+    .map((v, i) => `${(i / (SPARKLINE_SAMPLES - 1)) * 100},${100 - (v / max) * 100}`)
+    .join(" ");
+
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-5 w-14 shrink-0 text-accent-400">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="6" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
@@ -115,13 +141,14 @@ function TaskRow({ task, draggable }: { task: TransferTask; draggable?: boolean 
           transition={{ duration: 0.2 }}
         />
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
         <span>
           {formatBytes(task.transferred_bytes)} / {formatBytes(task.total_bytes)}
         </span>
         {task.status === "running" && extra && (
-          <span>
+          <span className="flex items-center gap-1.5">
             {formatSpeed(extra.speedBps)} · ETA {formatEta(extra.etaSecs)}
+            <SpeedSparkline speedBps={extra.speedBps} />
           </span>
         )}
         {task.error && <ErrorNotice raw={task.error} className="text-red-400" />}

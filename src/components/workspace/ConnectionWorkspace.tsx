@@ -16,6 +16,7 @@ import { isTypingTarget } from "../../lib/dom";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useSessionStore } from "../../store/useSessionStore";
 import { useSitesStore } from "../../store/useSitesStore";
+import { useToastStore } from "../../store/useToastStore";
 import { useTabsStore } from "../../store/useTabsStore";
 import { useUiStore } from "../../store/useUiStore";
 import { createUndoStore } from "../../store/useUndoStore";
@@ -200,11 +201,21 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
           }
           setConnection(info);
           setConnectError(null);
+          useToastStore.getState().push({
+            kind: "success",
+            title: "Reconnected",
+            message: saved.profile.name || saved.profile.host,
+          });
           return;
         } catch {
           if (attempt === backoffMs.length) {
             reconnectPathRef.current = null;
             setConnectError("Connection lost. Automatic reconnect failed after several attempts.");
+            useToastStore.getState().push({
+              kind: "error",
+              title: "Disconnected",
+              message: `Lost connection to ${saved.profile.name || saved.profile.host}`,
+            });
             return;
           }
           await new Promise((resolve) => setTimeout(resolve, backoffMs[attempt - 1]));

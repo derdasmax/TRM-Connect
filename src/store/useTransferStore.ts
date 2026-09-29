@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauri } from "../lib/api";
 import { useTransferHistoryStore } from "./useTransferHistoryStore";
+import { useToastStore } from "./useToastStore";
+import { friendlyMessage } from "../lib/friendlyError";
 import type { TransferStatusEvent, TransferProgressEvent, TransferChecksumEvent, TransferTask } from "../lib/types";
 
 export interface TransferProgressExtra {
@@ -66,6 +68,20 @@ function omit<T extends Record<string, unknown>>(record: T, key: string): T {
 
 function basename(path: string): string {
   return path.split(/[/\\]/).filter(Boolean).pop() ?? path;
+}
+
+function notifyTransferToast(task: TransferTask) {
+  const name = basename(task.direction === "upload" ? task.local_path : task.remote_path);
+  const verb = task.direction === "upload" ? "Upload" : "Download";
+  if (task.status === "completed") {
+    useToastStore.getState().push({ kind: "success", title: `${verb} complete`, message: name });
+  } else if (task.status === "failed") {
+    useToastStore.getState().push({
+      kind: "error",
+      title: `${verb} failed`,
+      message: `${name} — ${task.error ? friendlyMessage(task.error) : "unknown error"}`,
+    });
+  }
 }
 
 function recordHistory(task: TransferTask, siteName: string | null) {
@@ -137,6 +153,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
           existing.status !== p.status
         ) {
           recordHistory(updated, state.siteNames[p.taskId] ?? null);
+          notifyTransferToast(updated);
         }
         return {
           tasks: { ...state.tasks, [p.taskId]: updated },

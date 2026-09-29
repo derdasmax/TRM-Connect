@@ -6,6 +6,7 @@ import { ConnectionWorkspace } from "./components/workspace/ConnectionWorkspace"
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { TransferHistoryModal } from "./components/transfers/TransferHistoryModal";
+import { ToastContainer } from "./components/layout/ToastContainer";
 import { api } from "./lib/api";
 import { cn } from "./lib/cn";
 import { initSettingsEffects } from "./store/useSettingsStore";
@@ -52,6 +53,7 @@ export default function App() {
       <SettingsModal open={settingsModalOpen} onClose={() => useUiStore.getState().closeSettingsModal()} />
       <TransferHistoryModal open={historyModalOpen} onClose={() => useUiStore.getState().closeHistoryModal()} />
       <CommandPalette />
+      <ToastContainer />
     </div>
   );
 }

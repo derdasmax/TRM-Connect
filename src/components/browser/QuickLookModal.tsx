@@ -2,8 +2,9 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
+import "highlight.js/styles/github-dark.css";
 import { api, isTauri } from "../../lib/api";
-import { iconForEntry, previewKindFor } from "../../lib/fileIcons";
+import { iconForEntry, languageForEntry, previewKindFor } from "../../lib/fileIcons";
 import { formatBytes, formatDate } from "../../lib/format";
 import { IconButton } from "../ui/Button";
 import type { DirEntry } from "../../lib/types";
@@ -23,6 +24,7 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalPath(null);
@@ -75,6 +77,34 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [entry, onClose]);
+
+  // highlight.js bundles ~190 language grammars, which would otherwise sit
+  // in every user's initial download for a feature only Quick Look needs -
+  // loaded on demand and only once the raw text is actually in hand. A known
+  // extension (.ts, .py, ...) gets highlighted as that language; anything
+  // else still gets highlight.js's own best-guess auto-detection rather than
+  // no highlighting at all.
+  useEffect(() => {
+    setHighlighted(null);
+    if (textContent == null || !entry) return;
+    let cancelled = false;
+    import("highlight.js").then(({ default: hljs }) => {
+      if (cancelled) return;
+      try {
+        const lang = languageForEntry(entry);
+        const html =
+          lang && hljs.getLanguage(lang)
+            ? hljs.highlight(textContent, { language: lang }).value
+            : hljs.highlightAuto(textContent).value;
+        if (!cancelled) setHighlighted(html);
+      } catch {
+        // Leave `highlighted` null - the plain-text fallback below still renders.
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [textContent, entry]);
 
   const kind = entry ? previewKindFor(entry) : "unsupported";
   const { Icon, colorClass } = entry ? iconForEntry(entry) : { Icon: AlertTriangle, colorClass: "" };
@@ -147,8 +177,12 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
               )}
 
               {!loading && !error && kind === "text" && textContent != null && (
-                <pre className="h-full w-full overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2/60 p-3 font-mono text-[12px] leading-relaxed text-zinc-300">
-                  {textContent}
+                <pre className="h-full w-full overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2/60 p-3 font-mono text-[12px] leading-relaxed">
+                  {highlighted != null ? (
+                    <code className="hljs !bg-transparent" dangerouslySetInnerHTML={{ __html: highlighted }} />
+                  ) : (
+                    <code className="text-zinc-300">{textContent}</code>
+                  )}
                   {textContent.length >= TEXT_PREVIEW_MAX_BYTES && (
                     <div className="mt-2 text-amber-400">— truncated, file continues —</div>
                   )}

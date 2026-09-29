@@ -164,13 +164,29 @@ fn hash_str(s: &str) -> u64 {
 }
 
 /// Reads up to `max_bytes` of a local text file for a Quick Look / diff
-/// preview, lossily decoding as UTF-8 so binary garbage never breaks the
-/// UI thread.
+/// preview, lossily decoding as UTF-8 so a text file with a few stray
+/// non-UTF-8 bytes never breaks the UI thread. Quick Look now attempts a
+/// text preview for any extension it doesn't already recognize as an image,
+/// PDF, or known-binary format - `looks_binary` is the safety net that
+/// catches whatever slips through that guess and turns it into a clean
+/// "no preview" message instead of a wall of replacement characters.
 #[tauri::command]
 pub async fn read_text_preview(path: String, max_bytes: usize) -> Result<String, String> {
     let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
     let truncated = &bytes[..bytes.len().min(max_bytes)];
+    if looks_binary(truncated) {
+        return Err("This looks like a binary file - no text preview available.".to_string());
+    }
     Ok(String::from_utf8_lossy(truncated).to_string())
+}
+
+/// A NUL byte anywhere in real text is vanishingly rare and a strong binary
+/// signal - the same heuristic `git`/`diff` use to decide binary vs text.
+/// Checking just the lead of the file is enough and keeps this cheap even
+/// for a file at the preview's own size cap.
+fn looks_binary(bytes: &[u8]) -> bool {
+    let sample = &bytes[..bytes.len().min(8192)];
+    sample.contains(&0)
 }
 
 #[tauri::command]

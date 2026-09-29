@@ -78,10 +78,21 @@ export function iconForEntry(entry: DirEntry): IconSpec {
 export type PreviewKind = "image" | "pdf" | "text" | "unsupported";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "avif"]);
-const TEXT_EXTS = new Set([
-  "txt", "md", "log", "json", "ts", "tsx", "js", "jsx", "mjs", "rs", "py", "go", "rb", "php", "java", "kt",
-  "swift", "c", "h", "cpp", "hpp", "cs", "html", "css", "scss", "less", "vue", "sql", "yml", "yaml", "toml",
-  "xml", "sh", "bash", "zsh", "ps1", "csv", "tsv", "conf", "ini", "env", "gitignore", "dockerfile",
+
+/** Extensions Quick Look won't even attempt as text - everything else falls
+ *  through to a text-preview attempt (backed by a binary-content sniff on
+ *  the Rust side), so an unfamiliar or made-up extension still previews
+ *  instead of silently doing nothing. */
+const BINARY_EXTS = new Set([
+  "zip", "gz", "tgz", "tar", "7z", "rar", "bz2", "xz", "iso", "dmg",
+  "mp4", "mkv", "mov", "avi", "webm", "flv", "wmv", "m4v",
+  "mp3", "wav", "flac", "ogg", "aac", "m4a", "opus",
+  "exe", "dll", "so", "dylib", "msi", "deb", "rpm", "bin", "class", "jar", "apk", "app",
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+  "psd", "ai", "eps", "sketch", "fig",
+  "ttf", "otf", "woff", "woff2", "eot",
+  "db", "sqlite", "sqlite3",
+  "heic", "tiff",
 ]);
 
 /** Which Quick Look renderer applies to this entry, based on its extension. */
@@ -90,11 +101,29 @@ export function previewKindFor(entry: DirEntry): PreviewKind {
   const ext = entry.name.split(".").pop()?.toLowerCase() ?? "";
   if (IMAGE_EXTS.has(ext)) return "image";
   if (ext === "pdf") return "pdf";
-  if (TEXT_EXTS.has(ext)) return "text";
-  // A dotfile with no further extension (.bashrc, .gitconfig, .profile, ...)
-  // has `ext` equal to its own name minus the leading dot - these are almost
-  // always plain-text config, so default them to the text preview too.
+  if (BINARY_EXTS.has(ext)) return "unsupported";
+  return "text";
+}
+
+/** Maps a file's extension (or well-known bare name, e.g. `Dockerfile`) to a
+ *  highlight.js language name. Undefined means "let highlight.js guess" -
+ *  the fallback that makes an unrecognized extension still get *some*
+ *  highlighting rather than none. */
+const HLJS_LANG_MAP: Record<string, string> = {
+  ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+  py: "python", rs: "rust", go: "go", rb: "ruby", php: "php", java: "java", kt: "kotlin", swift: "swift",
+  c: "c", h: "c", cpp: "cpp", hpp: "cpp", cc: "cpp", cs: "csharp", html: "xml", htm: "xml", xml: "xml", vue: "xml",
+  css: "css", scss: "scss", less: "less", sql: "sql", yml: "yaml", yaml: "yaml", toml: "ini", ini: "ini",
+  sh: "bash", bash: "bash", zsh: "bash", ps1: "powershell", json: "json", md: "markdown",
+  makefile: "makefile", gradle: "gradle", groovy: "groovy", lua: "lua", pl: "perl", r: "r",
+  scala: "scala", dart: "dart", diff: "diff", patch: "diff", graphql: "graphql", proto: "protobuf",
+  env: "ini", conf: "ini", cfg: "ini",
+};
+
+export function languageForEntry(entry: DirEntry): string | undefined {
   const name = entry.name.toLowerCase();
-  if (name.startsWith(".") && ext === name.slice(1)) return "text";
-  return "unsupported";
+  if (name === "dockerfile" || name.startsWith("dockerfile.")) return "dockerfile";
+  if (name === "makefile" || name === "cmakelists.txt") return "makefile";
+  const ext = name.split(".").pop() ?? "";
+  return HLJS_LANG_MAP[ext];
 }

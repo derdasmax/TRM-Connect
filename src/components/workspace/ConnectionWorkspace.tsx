@@ -113,6 +113,28 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabId, connection, connecting, connectError, activeSiteId, sites]);
 
+  // Exposes this tab's actions to the Command Palette (Ctrl+K), which lives
+  // outside any single tab and needs a way to act "on whichever tab is
+  // currently active" without owning that tab's state itself.
+  useEffect(() => {
+    if (!active) return;
+    useUiStore.getState().setActiveWorkspaceActions({
+      openQuickConnect: () => setQuickConnectOpen(true),
+      openSiteManager: () => setSiteManagerOpen(true),
+      disconnect: () => void handleDisconnect(),
+      connectToSite: (site) => void handleConnect(site, site.id),
+      undo: () => void handleUndo(),
+      redo: () => void handleRedo(),
+      canUndo,
+      canRedo,
+      connected: !!connection,
+    });
+    return () => {
+      if (useUiStore.getState().activeWorkspaceActions) useUiStore.getState().setActiveWorkspaceActions(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, connection, canUndo, canRedo]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!active || isTypingTarget(e.target)) return;

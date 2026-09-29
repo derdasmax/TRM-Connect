@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SplashScreen } from "./components/layout/SplashScreen";
 import { TabBar } from "./components/layout/TabBar";
+import { CommandPalette } from "./components/layout/CommandPalette";
 import { ConnectionWorkspace } from "./components/workspace/ConnectionWorkspace";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
 import { SettingsModal } from "./components/settings/SettingsModal";
@@ -47,6 +48,7 @@ export default function App() {
       <TransferQueuePanel />
 
       <SettingsModal open={settingsModalOpen} onClose={() => useUiStore.getState().closeSettingsModal()} />
+      <CommandPalette />
     </div>
   );
 }

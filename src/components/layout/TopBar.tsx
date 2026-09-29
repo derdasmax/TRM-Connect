@@ -1,7 +1,8 @@
-import { Moon, Plug, Redo2, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
+import { Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
 import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
+import { useUiStore } from "../../store/useUiStore";
 import type { ConnectionInfo } from "../../lib/types";
 
 interface TopBarProps {
@@ -71,6 +72,10 @@ export function TopBar({
       </div>
 
       <div className="flex-1" />
+
+      <IconButton title="Command Palette (Ctrl+K)" onClick={() => useUiStore.getState().openCommandPalette()}>
+        <Search size={14} />
+      </IconButton>
 
       <IconButton title="Undo" disabled={!canUndo} onClick={onUndo}>
         <Undo2 size={14} />

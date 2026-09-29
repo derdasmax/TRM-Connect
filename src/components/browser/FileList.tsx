@@ -58,7 +58,11 @@ export function FileList({
   dropHighlight,
 }: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const hoveredRef = useRef(false);
+  // Whether this pane is the one keyboard shortcuts (Delete, Space, arrow
+  // navigation) should act on - true while the mouse hovers it *or* it holds
+  // real DOM focus, so the exact same shortcuts work for a mouse user who
+  // never clicks a row and a keyboard-only user tabbing between panes.
+  const isActiveRef = useRef(false);
   const virtualizer = useVirtualizer({
     count: pane.entries.length,
     getScrollElement: () => parentRef.current,
@@ -124,9 +128,29 @@ export function FileList({
     rafRef.current = requestAnimationFrame(tick);
   }, [applyDragSelection]);
 
+  // Moves (or extends, for Shift+arrow/Home/End) the selection to the entry
+  // at `targetIndex`, scrolling it into view - the keyboard equivalent of
+  // clicking (or shift-clicking) a row, so the whole list is browsable
+  // without a mouse.
+  const moveSelectionTo = useCallback(
+    (targetIndex: number, extend: boolean) => {
+      const entries = pane.entries;
+      if (entries.length === 0) return;
+      const clamped = Math.max(0, Math.min(entries.length - 1, targetIndex));
+      const path = entries[clamped].path;
+      if (extend && lastClickedRef.current) pane.selectRange(lastClickedRef.current, path);
+      else {
+        pane.toggleSelect(path, false);
+        lastClickedRef.current = path;
+      }
+      virtualizer.scrollToIndex(clamped, { align: "auto" });
+    },
+    [pane, virtualizer],
+  );
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!hoveredRef.current || isTypingTarget(e.target)) return;
+      if (!isActiveRef.current || isTypingTarget(e.target)) return;
 
       if (e.code === "Space") {
         if (pane.selection.size !== 1) return;
@@ -141,11 +165,38 @@ export function FileList({
         if (pane.selection.size === 0) return;
         e.preventDefault();
         onDeleteRequest();
+        return;
+      }
+
+      const currentIndex = lastClickedRef.current
+        ? pane.entries.findIndex((en) => en.path === lastClickedRef.current)
+        : -1;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        const start = currentIndex === -1 ? (delta > 0 ? 0 : pane.entries.length - 1) : currentIndex + delta;
+        moveSelectionTo(start, e.shiftKey);
+        return;
+      }
+
+      if (e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        moveSelectionTo(e.key === "Home" ? 0 : pane.entries.length - 1, e.shiftKey);
+        return;
+      }
+
+      if (e.key === "Enter") {
+        const entry = pane.entries.find((en) => pane.selection.has(en.path));
+        if (!entry) return;
+        e.preventDefault();
+        if (entry.is_dir) onOpen(entry);
+        else onQuickLook(entry);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pane.selection, pane.entries, onQuickLook, onDeleteRequest]);
+  }, [pane, onOpen, onQuickLook, onDeleteRequest, moveSelectionTo]);
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
@@ -199,8 +250,12 @@ export function FileList({
   return (
     <div
       ref={parentRef}
+      tabIndex={0}
+      role="listbox"
+      aria-multiselectable="true"
       className={cn(
-        "relative flex-1 overflow-y-auto overflow-x-hidden select-none",
+        "relative flex-1 overflow-y-auto overflow-x-hidden select-none outline-none",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500",
         dropHighlight && "outline outline-2 -outline-offset-2 outline-accent-500",
       )}
       onContextMenu={(e) => {
@@ -212,8 +267,10 @@ export function FileList({
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) beginDrag(e);
       }}
-      onMouseEnter={() => (hoveredRef.current = true)}
-      onMouseLeave={() => (hoveredRef.current = false)}
+      onMouseEnter={() => (isActiveRef.current = true)}
+      onMouseLeave={() => (isActiveRef.current = false)}
+      onFocus={() => (isActiveRef.current = true)}
+      onBlur={() => (isActiveRef.current = false)}
     >
       {pane.loading && pane.entries.length === 0 && (
         <div className="space-y-1 p-2">
@@ -246,6 +303,8 @@ export function FileList({
                 height: row.size,
                 transform: `translateY(${row.start}px)`,
               }}
+              role="option"
+              aria-selected={selected}
               className={cn(
                 "group flex select-none items-center gap-2 rounded-md px-2 text-[13px] text-zinc-300",
                 selected ? "bg-accent-600/25 text-zinc-100" : "hover:bg-surface-2",
@@ -254,6 +313,7 @@ export function FileList({
                 if (e.shiftKey && lastClickedRef.current) pane.selectRange(lastClickedRef.current, entry.path);
                 else pane.toggleSelect(entry.path, e.metaKey || e.ctrlKey);
                 lastClickedRef.current = entry.path;
+                parentRef.current?.focus();
               }}
               onDoubleClick={() => (entry.is_dir ? onOpen(entry) : onQuickLook(entry))}
               onContextMenu={(e) => {

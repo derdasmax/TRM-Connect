@@ -90,6 +90,8 @@ pub fn run() {
             commands::portable::is_portable_mode,
             commands::portable::set_portable_mode,
             commands::sync::diff_directories,
+            commands::cloud_sync::cloud_sync_push,
+            commands::cloud_sync::cloud_sync_pull,
             commands::browse::list_remote_dir,
             commands::browse::remote_canonicalize,
             commands::browse::remote_mkdir,

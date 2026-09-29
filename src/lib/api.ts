@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ConnectionInfo, DirEntry, SiteProfile, SyncDiffResult, TransferTask } from "./types";
+import type { CloudSyncPullResult, ConnectionInfo, DirEntry, SiteProfile, SyncDiffResult, TransferTask } from "./types";
 
 // Thin, typed wrappers around the Tauri commands in src-tauri/src/commands.
 // Every function name matches its #[tauri::command] counterpart 1:1.
@@ -53,6 +53,12 @@ export const api = {
   // -- Directory sync --------------------------------------------------
   diffDirectories: (connectionId: string, localRoot: string, remoteRoot: string) =>
     invoke<SyncDiffResult>("diff_directories", { connectionId, localRoot, remoteRoot }),
+
+  // -- Cloud sync (via a saved connection, not a bespoke backend) -----
+  cloudSyncPush: (connectionId: string, remotePath: string, passphrase: string, settingsJson: string) =>
+    invoke<void>("cloud_sync_push", { connectionId, remotePath, passphrase, settingsJson }),
+  cloudSyncPull: (connectionId: string, remotePath: string, passphrase: string) =>
+    invoke<CloudSyncPullResult>("cloud_sync_pull", { connectionId, remotePath, passphrase }),
 
   // -- Local browsing ----------------------------------------------------
   listLocalDir: (path: string) => invoke<DirEntry[]>("list_local_dir", { path }),

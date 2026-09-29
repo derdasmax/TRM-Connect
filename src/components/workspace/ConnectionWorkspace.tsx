@@ -6,11 +6,13 @@ import { Pane } from "../browser/Pane";
 import { DragGhost, type DragGhostInfo } from "../browser/DragGhost";
 import { ConflictDialog } from "../transfers/ConflictDialog";
 import { SyncDirectoriesDialog } from "../sync/SyncDirectoriesDialog";
+import { CloudSyncDialog } from "../sync/CloudSyncDialog";
 import { SiteManagerModal } from "../sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "../sitemanager/QuickConnectModal";
 import { ErrorNotice } from "../common/ErrorNotice";
 import { Button, IconButton } from "../ui/Button";
 import { usePane } from "../../hooks/usePane";
+import { joinPath } from "../../lib/format";
 import { useConflictAwareEnqueue } from "../../hooks/useConflictAwareEnqueue";
 import { api, isTauri } from "../../lib/api";
 import { isTypingTarget } from "../../lib/dom";
@@ -52,6 +54,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   const [dragOverRemote, setDragOverRemote] = useState(false);
   const [dragGhost, setDragGhost] = useState<DragGhostInfo | null>(null);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [cloudSyncOpen, setCloudSyncOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sessionRestoreDismissed, setSessionRestoreDismissed] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -447,6 +450,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         onUndo={() => void handleUndo()}
         onRedo={() => void handleRedo()}
         onSyncDirectories={() => setSyncDialogOpen(true)}
+        onCloudSync={() => setCloudSyncOpen(true)}
       />
 
       {connectError && (
@@ -619,6 +623,14 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
             localPane.refresh();
             remotePane.refresh();
           }}
+        />
+      )}
+      {connection && (
+        <CloudSyncDialog
+          open={cloudSyncOpen}
+          onClose={() => setCloudSyncOpen(false)}
+          connectionId={connection.connection_id}
+          suggestedPath={joinPath(remotePane.path, ".trm-connect-sync.json", remotePane.sep)}
         />
       )}
       <DragGhost info={dragGhost} />

@@ -68,6 +68,11 @@ export interface SyncDiffResult {
   same_count: number;
 }
 
+export interface CloudSyncPullResult {
+  sites: SiteProfile[];
+  settings_json: string;
+}
+
 export type TransferDirection = "upload" | "download";
 export type TransferStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
 export type TransferMode = "auto" | "binary" | "text";

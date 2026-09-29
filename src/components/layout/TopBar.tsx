@@ -1,4 +1,4 @@
-import { FolderSync, Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
+import { Cloud, FolderSync, Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
 import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
@@ -19,6 +19,7 @@ interface TopBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onSyncDirectories?: () => void;
+  onCloudSync?: () => void;
 }
 
 export function TopBar({
@@ -35,6 +36,7 @@ export function TopBar({
   onUndo,
   onRedo,
   onSyncDirectories,
+  onCloudSync,
 }: TopBarProps) {
   const { theme, setTheme } = useSettingsStore();
 
@@ -94,6 +96,11 @@ export function TopBar({
       {connection && onSyncDirectories && (
         <IconButton title="Sync directories" onClick={onSyncDirectories}>
           <FolderSync size={14} />
+        </IconButton>
+      )}
+      {connection && onCloudSync && (
+        <IconButton title="Cloud sync" onClick={onCloudSync}>
+          <Cloud size={14} />
         </IconButton>
       )}
 

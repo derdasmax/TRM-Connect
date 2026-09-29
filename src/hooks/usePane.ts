@@ -32,7 +32,9 @@ export interface PaneController {
   replaceSelection: (paths: string[]) => void;
   clearSelection: () => void;
   mkdir: (name: string) => Promise<void>;
-  removeSelected: () => Promise<void>;
+  /** Deletes every selected entry, continuing past individual failures.
+   *  Resolves with one message per item that failed (empty = all succeeded). */
+  removeSelected: () => Promise<string[]>;
   rename: (path: string, newName: string) => Promise<void>;
   chmod: ((path: string, mode: number) => Promise<void>) | null;
 }
@@ -149,16 +151,26 @@ export function usePane(kind: PaneKind, connectionId: string | null, initialPath
 
   const removeSelected = useCallback(async () => {
     const targets = sorted.filter((e) => selection.has(e.path));
+    const failures: string[] = [];
+    // One failing item (permission denied, file in use, ...) must not abort
+    // the rest of the batch, and the pane must always refresh afterward -
+    // previously an unhandled rejection here silently stopped the loop and
+    // skipped the refresh, making delete look like it did nothing at all.
     for (const t of targets) {
-      if (kind === "local") {
-        if (t.is_dir) await api.localRemoveDir(t.path);
-        else await api.localRemoveFile(t.path);
-      } else {
-        if (t.is_dir) await api.remoteRemoveDir(connectionId as string, t.path);
-        else await api.remoteRemoveFile(connectionId as string, t.path);
+      try {
+        if (kind === "local") {
+          if (t.is_dir) await api.localRemoveDir(t.path);
+          else await api.localRemoveFile(t.path);
+        } else {
+          if (t.is_dir) await api.remoteRemoveDir(connectionId as string, t.path);
+          else await api.remoteRemoveFile(connectionId as string, t.path);
+        }
+      } catch (e) {
+        failures.push(`${t.name}: ${String(e)}`);
       }
     }
     refresh();
+    return failures;
   }, [kind, connectionId, sorted, selection, refresh]);
 
   const rename = useCallback(

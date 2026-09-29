@@ -162,6 +162,20 @@ impl FileTransferClient for FtpClient {
     }
 
     async fn remove_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
+        // FTP's RMD (what `remove_empty_dir` calls) only succeeds on an
+        // already-empty directory, same caveat as SFTP's RMDIR above.
+        let entries = self.list_dir(path).await?;
+        for entry in entries {
+            if entry.is_dir {
+                self.remove_dir(&entry.path).await?;
+            } else {
+                self.remove_file(&entry.path).await?;
+            }
+        }
+        self.remove_empty_dir(path).await
+    }
+
+    async fn remove_empty_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
         self.ftp.rmdir(path).await.map_err(ftp_err)
     }
 

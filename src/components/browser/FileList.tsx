@@ -21,6 +21,7 @@ interface FileListProps {
   onOpen: (entry: DirEntry) => void;
   onContextMenu: (entry: DirEntry | null, x: number, y: number) => void;
   onQuickLook: (entry: DirEntry) => void;
+  onDeleteRequest: () => void;
   showPermissions?: boolean;
   dropHighlight?: boolean;
 }
@@ -47,7 +48,15 @@ interface DragState {
   lastClientY: number;
 }
 
-export function FileList({ pane, onOpen, onContextMenu, onQuickLook, showPermissions, dropHighlight }: FileListProps) {
+export function FileList({
+  pane,
+  onOpen,
+  onContextMenu,
+  onQuickLook,
+  onDeleteRequest,
+  showPermissions,
+  dropHighlight,
+}: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const hoveredRef = useRef(false);
   const virtualizer = useVirtualizer({
@@ -117,16 +126,26 @@ export function FileList({ pane, onOpen, onContextMenu, onQuickLook, showPermiss
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.code !== "Space" || !hoveredRef.current || isTypingTarget(e.target)) return;
-      if (pane.selection.size !== 1) return;
-      const entry = pane.entries.find((en) => pane.selection.has(en.path));
-      if (!entry || entry.is_dir) return;
-      e.preventDefault();
-      onQuickLook(entry);
+      if (!hoveredRef.current || isTypingTarget(e.target)) return;
+
+      if (e.code === "Space") {
+        if (pane.selection.size !== 1) return;
+        const entry = pane.entries.find((en) => pane.selection.has(en.path));
+        if (!entry || entry.is_dir) return;
+        e.preventDefault();
+        onQuickLook(entry);
+        return;
+      }
+
+      if (e.key === "Delete") {
+        if (pane.selection.size === 0) return;
+        e.preventDefault();
+        onDeleteRequest();
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pane.selection, pane.entries, onQuickLook]);
+  }, [pane.selection, pane.entries, onQuickLook, onDeleteRequest]);
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {

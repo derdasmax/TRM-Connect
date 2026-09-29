@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Plug, Save, X as XIcon } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Eye, EyeOff, Plug, Save, X as XIcon } from "lucide-react";
+import { Button, IconButton } from "../ui/Button";
 import { Checkbox, FieldRow, Input, Select } from "../ui/Field";
-import { defaultPortFor, emptySecret, type AuthMethod, type Protocol, type SiteProfile } from "../../lib/types";
+import { defaultPortFor, emptySecret, type AuthMethod, type Protocol, type SecretField, type SiteProfile } from "../../lib/types";
 
 interface SiteFormProps {
   initial: SiteProfile;
@@ -13,8 +13,48 @@ interface SiteFormProps {
   mode?: "manage" | "quick";
 }
 
+/** A password/passphrase input that never displays a saved secret's stored
+ *  value (which, once saved, is ciphertext - showing it invites a user to
+ *  "edit" what looks like garbled text and unknowingly overwrite their real
+ *  password with that garbage). It only ever holds a fresh plaintext draft;
+ *  the caller decides what "leave blank" means (keep the saved secret, or
+ *  save no secret, depending on the "remember" checkbox). */
+function SecretInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="pr-9"
+      />
+      <IconButton
+        type="button"
+        title={visible ? "Hide" : "Show"}
+        onClick={() => setVisible((v) => !v)}
+        className="absolute right-1 top-1/2 -translate-y-1/2"
+      >
+        {visible ? <EyeOff size={14} /> : <Eye size={14} />}
+      </IconButton>
+    </div>
+  );
+}
+
 export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage" }: SiteFormProps) {
   const [profile, setProfile] = useState<SiteProfile>(initial);
+  // Never seeded from the stored (possibly-encrypted) secret - see SecretInput above.
+  const [secretDraft, setSecretDraft] = useState("");
+  const [rememberSecret, setRememberSecret] = useState(true);
   const authKind = profile.auth.kind;
 
   const update = <K extends keyof SiteProfile>(key: K, value: SiteProfile[K]) =>
@@ -22,11 +62,33 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
 
   const setAuth = (auth: AuthMethod) => setProfile((p) => ({ ...p, auth }));
 
+  /** Resolves the draft + "remember" checkbox into the SecretField that
+   *  actually gets saved, without ever resubmitting a stored ciphertext as
+   *  if it were a fresh plaintext value. */
+  function resolveSecret(originalSecret: SecretField | null): SecretField {
+    if (!rememberSecret) return emptySecret();
+    if (secretDraft !== "") return { value: secretDraft, is_encrypted: false };
+    // Untouched: keep whatever was already stored (encrypted or empty) exactly as-is.
+    return originalSecret ?? emptySecret();
+  }
+
+  function buildFinalProfile(): SiteProfile {
+    if (profile.auth.kind === "password") {
+      const original = initial.auth.kind === "password" ? initial.auth.password : null;
+      return { ...profile, auth: { kind: "password", password: resolveSecret(original) } };
+    }
+    if (profile.auth.kind === "private_key") {
+      const original = initial.auth.kind === "private_key" ? initial.auth.passphrase : null;
+      return { ...profile, auth: { ...profile.auth, passphrase: resolveSecret(original) } };
+    }
+    return profile;
+  }
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(profile);
+        onSave(buildFinalProfile());
       }}
     >
       <FieldRow label="Name">
@@ -71,6 +133,8 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
             value={authKind}
             onChange={(e) => {
               const kind = e.target.value as AuthMethod["kind"];
+              setSecretDraft("");
+              setRememberSecret(true);
               if (kind === "password") setAuth({ kind, password: emptySecret() });
               else if (kind === "private_key") setAuth({ kind, key_path: "", passphrase: emptySecret() });
               else setAuth({ kind: "agent" });
@@ -85,11 +149,22 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
 
       {profile.auth.kind === "password" && (
         <FieldRow label="Password">
-          <Input
-            type="password"
-            value={profile.auth.password.value}
-            onChange={(e) => setAuth({ kind: "password", password: { value: e.target.value, is_encrypted: false } })}
+          <SecretInput
+            value={secretDraft}
+            onChange={setSecretDraft}
+            placeholder={
+              initial.auth.kind === "password" && initial.auth.password.value !== ""
+                ? "•••••••• (saved - leave blank to keep)"
+                : undefined
+            }
           />
+          <div className="mt-1.5">
+            <Checkbox
+              label="Remember password"
+              checked={rememberSecret}
+              onChange={(e) => setRememberSecret(e.target.checked)}
+            />
+          </div>
         </FieldRow>
       )}
 
@@ -106,30 +181,24 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
             />
           </FieldRow>
           <FieldRow label="Key passphrase (optional)">
-            <Input
-              type="password"
-              value={profile.auth.passphrase.value}
-              onChange={(e) => {
-                const auth = profile.auth as Extract<AuthMethod, { kind: "private_key" }>;
-                setAuth({
-                  kind: "private_key",
-                  key_path: auth.key_path,
-                  passphrase: { value: e.target.value, is_encrypted: false },
-                });
-              }}
+            <SecretInput
+              value={secretDraft}
+              onChange={setSecretDraft}
+              placeholder={
+                initial.auth.kind === "private_key" && initial.auth.passphrase.value !== ""
+                  ? "•••••••• (saved - leave blank to keep)"
+                  : undefined
+              }
             />
+            <div className="mt-1.5">
+              <Checkbox
+                label="Remember passphrase"
+                checked={rememberSecret}
+                onChange={(e) => setRememberSecret(e.target.checked)}
+              />
+            </div>
           </FieldRow>
         </>
-      )}
-
-      {(profile.protocol === "ftp" || profile.protocol === "ftps") && profile.auth.kind !== "password" && (
-        <FieldRow label="Password">
-          <Input
-            type="password"
-            value=""
-            onChange={(e) => setAuth({ kind: "password", password: { value: e.target.value, is_encrypted: false } })}
-          />
-        </FieldRow>
       )}
 
       {profile.protocol === "ftps" && (
@@ -173,7 +242,7 @@ export function SiteForm({ initial, onCancel, onSave, onConnect, mode = "manage"
             </Button>
           )}
           {onConnect && (
-            <Button type="button" variant="primary" onClick={() => onConnect(profile)}>
+            <Button type="button" variant="primary" onClick={() => onConnect(buildFinalProfile())}>
               <Plug size={14} /> {mode === "quick" ? "Connect" : "Save & Connect"}
             </Button>
           )}

@@ -99,6 +99,22 @@ impl FileTransferClient for SftpClient {
     }
 
     async fn remove_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
+        // SFTP's RMDIR (what `remove_empty_dir` calls) only succeeds on an
+        // already-empty directory; deleting one with contents - the normal
+        // "just delete it" user action - previously threw here and aborted
+        // the whole delete batch with no visible feedback. Empty it first.
+        let entries = self.list_dir(path).await?;
+        for entry in entries {
+            if entry.is_dir {
+                self.remove_dir(&entry.path).await?;
+            } else {
+                self.remove_file(&entry.path).await?;
+            }
+        }
+        self.remove_empty_dir(path).await
+    }
+
+    async fn remove_empty_dir(&mut self, path: &str) -> Result<(), ProtocolError> {
         self.sftp.remove_dir(path).await.map_err(|e| ProtocolError::Remote(e.to_string()))
     }
 

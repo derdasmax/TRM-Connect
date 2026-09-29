@@ -12,11 +12,14 @@ interface SettingsState {
   globalBandwidthLimitBps: number;
   /** Default for new transfers' "verify checksum after transfer" option. */
   verifyChecksumsDefault: boolean;
+  /** Whether to ask for confirmation before deleting files. Off once the user checks "don't ask again". */
+  confirmBeforeDelete: boolean;
   setTheme: (theme: ThemeMode) => void;
   setReduceMotion: (v: boolean) => void;
   setTransferQueueCollapsed: (v: boolean) => void;
   setGlobalBandwidthLimitBps: (v: number) => void;
   setVerifyChecksumsDefault: (v: boolean) => void;
+  setConfirmBeforeDelete: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -27,11 +30,13 @@ export const useSettingsStore = create<SettingsState>()(
       transferQueueCollapsed: false,
       globalBandwidthLimitBps: 0,
       verifyChecksumsDefault: false,
+      confirmBeforeDelete: true,
       setTheme: (theme) => set({ theme }),
       setReduceMotion: (reduceMotion) => set({ reduceMotion }),
       setTransferQueueCollapsed: (transferQueueCollapsed) => set({ transferQueueCollapsed }),
       setGlobalBandwidthLimitBps: (globalBandwidthLimitBps) => set({ globalBandwidthLimitBps }),
       setVerifyChecksumsDefault: (verifyChecksumsDefault) => set({ verifyChecksumsDefault }),
+      setConfirmBeforeDelete: (confirmBeforeDelete) => set({ confirmBeforeDelete }),
     }),
     { name: "trm-connect.settings" },
   ),

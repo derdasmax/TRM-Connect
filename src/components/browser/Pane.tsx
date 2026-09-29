@@ -242,6 +242,7 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
         entry={quickLookEntry}
         connectionId={pane.kind === "remote" ? pane.connectionId : null}
         onClose={() => setQuickLookEntry(null)}
+        onSaved={pane.refresh}
       />
 
       <DeleteConfirmDialog

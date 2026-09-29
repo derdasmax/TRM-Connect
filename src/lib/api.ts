@@ -46,6 +46,9 @@ export const api = {
     invoke<string>("quick_look_remote", { connectionId, path, size }),
   readTextPreview: (path: string, maxBytes: number) =>
     invoke<string>("read_text_preview", { path, maxBytes }),
+  writeTextFile: (path: string, contents: string) => invoke<void>("write_text_file", { path, contents }),
+  quickLookSaveRemote: (connectionId: string, localPath: string, remotePath: string) =>
+    invoke<void>("quick_look_save_remote", { connectionId, localPath, remotePath }),
 
   // -- Local browsing ----------------------------------------------------
   listLocalDir: (path: string) => invoke<DirEntry[]>("list_local_dir", { path }),

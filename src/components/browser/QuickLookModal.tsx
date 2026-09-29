@@ -1,12 +1,13 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Pencil, X } from "lucide-react";
 import "highlight.js/styles/github-dark.css";
 import { api, isTauri } from "../../lib/api";
 import { iconForEntry, languageForEntry, previewKindFor } from "../../lib/fileIcons";
 import { formatBytes, formatDate } from "../../lib/format";
-import { IconButton } from "../ui/Button";
+import { ErrorNotice } from "../common/ErrorNotice";
+import { Button, IconButton } from "../ui/Button";
 import type { DirEntry } from "../../lib/types";
 
 const TEXT_PREVIEW_MAX_BYTES = 400_000;
@@ -17,19 +18,33 @@ interface QuickLookModalProps {
   /** Null for the local pane; the connection id for the remote pane. */
   connectionId: string | null;
   onClose: () => void;
+  /** Called after a successful save, so the pane can refresh the entry's
+   *  now-stale size/modified time. */
+  onSaved?: () => void;
 }
 
-export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalProps) {
+export function QuickLookModal({ entry, connectionId, onClose, onSaved }: QuickLookModalProps) {
   const [localPath, setLocalPath] = useState<string | null>(null);
+  // Where the actual file bytes live on disk right now: the file itself for
+  // a local entry, or the temp copy `quick_look_remote` downloaded for a
+  // remote one - saving an edit always writes here first.
+  const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalPath(null);
+    setSourcePath(null);
     setTextContent(null);
     setError(null);
+    setEditing(false);
+    setSaveError(null);
     if (!entry || !isTauri()) return;
 
     const kind = previewKindFor(entry);
@@ -48,6 +63,7 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
           path = await api.quickLookRemote(connectionId, entry!.path, entry!.size);
         }
         if (cancelled) return;
+        setSourcePath(path);
         if (kind === "text") {
           const text = await api.readTextPreview(path, TEXT_PREVIEW_MAX_BYTES);
           if (!cancelled) setTextContent(text);
@@ -69,14 +85,47 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
   useEffect(() => {
     if (!entry) return;
     function onKey(e: KeyboardEvent) {
-      if (e.code === "Space" || e.key === "Escape") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (editing) setEditing(false);
+        else onClose();
+        return;
+      }
+      // Space is the "quick" close shortcut, matching Finder/Explorer Quick
+      // Look conventions - but it's also just a character the user needs to
+      // type while editing, so it must never fire while the textarea is live.
+      if (e.code === "Space" && !editing) {
         e.preventDefault();
         onClose();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [entry, onClose]);
+  }, [entry, onClose, editing]);
+
+  function startEditing() {
+    if (textContent == null) return;
+    setDraft(textContent);
+    setSaveError(null);
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    if (!entry || sourcePath == null) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.writeTextFile(sourcePath, draft);
+      if (connectionId) await api.quickLookSaveRemote(connectionId, sourcePath, entry.path);
+      setTextContent(draft);
+      setEditing(false);
+      onSaved?.();
+    } catch (e) {
+      setSaveError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // highlight.js bundles ~190 language grammars, which would otherwise sit
   // in every user's initial download for a feature only Quick Look needs -
@@ -137,10 +186,39 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
                   {formatBytes(entry.size)} · {formatDate(entry.modified)}
                 </span>
               </div>
-              <IconButton title="Close (Space/Esc)" onClick={onClose}>
-                <X size={15} />
-              </IconButton>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {!editing &&
+                  !loading &&
+                  !error &&
+                  kind === "text" &&
+                  textContent != null &&
+                  textContent.length < TEXT_PREVIEW_MAX_BYTES && (
+                    <IconButton title="Edit" onClick={startEditing}>
+                      <Pencil size={14} />
+                    </IconButton>
+                  )}
+                {editing && (
+                  <>
+                    <Button variant="ghost" onClick={() => setEditing(false)} disabled={saving} className="!py-1 text-xs">
+                      Cancel
+                    </Button>
+                    <Button variant="primary" onClick={() => void handleSave()} disabled={saving} className="!py-1 text-xs">
+                      {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Save{connectionId ? " & upload" : ""}
+                    </Button>
+                  </>
+                )}
+                <IconButton title="Close (Space/Esc)" onClick={onClose}>
+                  <X size={15} />
+                </IconButton>
+              </div>
             </div>
+
+            {saveError && (
+              <div className="border-b border-red-900/40 bg-red-950/40 px-4 py-1.5 text-[12px] text-red-300">
+                <ErrorNotice raw={saveError} />
+              </div>
+            )}
 
             <div className="flex flex-1 items-center justify-center overflow-auto bg-surface-0/40 p-4">
               {loading && (
@@ -176,7 +254,17 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
                 <iframe title={entry.name} src={convertFileSrc(localPath)} className="h-full w-full rounded bg-white" />
               )}
 
-              {!loading && !error && kind === "text" && textContent != null && (
+              {!loading && !error && kind === "text" && textContent != null && editing && (
+                <textarea
+                  autoFocus
+                  spellCheck={false}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="h-full w-full resize-none overflow-auto rounded bg-surface-2/60 p-3 font-mono text-[12px] leading-relaxed text-zinc-100 outline-none focus:ring-1 focus:ring-accent-500"
+                />
+              )}
+
+              {!loading && !error && kind === "text" && textContent != null && !editing && (
                 <pre className="h-full w-full overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2/60 p-3 font-mono text-[12px] leading-relaxed">
                   {highlighted != null ? (
                     <code className="hljs !bg-transparent" dangerouslySetInnerHTML={{ __html: highlighted }} />
@@ -184,7 +272,7 @@ export function QuickLookModal({ entry, connectionId, onClose }: QuickLookModalP
                     <code className="text-zinc-300">{textContent}</code>
                   )}
                   {textContent.length >= TEXT_PREVIEW_MAX_BYTES && (
-                    <div className="mt-2 text-amber-400">— truncated, file continues —</div>
+                    <div className="mt-2 text-amber-400">— truncated, file continues — editing is disabled to avoid cutting off the rest of the file.</div>
                   )}
                 </pre>
               )}

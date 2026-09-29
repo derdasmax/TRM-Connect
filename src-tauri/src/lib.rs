@@ -100,6 +100,8 @@ pub fn run() {
             commands::browse::remote_stat,
             commands::browse::quick_look_remote,
             commands::browse::read_text_preview,
+            commands::browse::write_text_file,
+            commands::browse::quick_look_save_remote,
             commands::browse::list_local_dir,
             commands::browse::local_mkdir,
             commands::browse::local_remove_file,

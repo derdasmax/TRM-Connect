@@ -156,6 +156,45 @@ pub async fn quick_look_remote(
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// Overwrites a local file with new content - used by Quick Look's inline
+/// editor to save either a genuinely local file, or (ahead of a re-upload)
+/// the local temp copy `quick_look_remote` downloaded.
+#[tauri::command]
+pub async fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    tokio::fs::write(&path, contents).await.map_err(|e| e.to_string())
+}
+
+/// Re-uploads a Quick Look temp file back to its original remote path after
+/// an inline edit, reusing the already-open browsing connection the same way
+/// `quick_look_remote` downloaded it - not the transfer queue, since this is
+/// a small, synchronous save the user is actively waiting on.
+#[tauri::command]
+pub async fn quick_look_save_remote(
+    state: State<'_, AppState>,
+    connection_id: String,
+    local_path: String,
+    remote_path: String,
+) -> Result<(), String> {
+    let conn = get_connection(&state, &connection_id).await?;
+    let mut client = conn.client.lock().await;
+
+    let (progress_tx, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (_pause_tx, pause_rx) = tokio::sync::watch::channel(false);
+    let mut control = TransferControl {
+        cancel: CancellationToken::new(),
+        pause: pause_rx,
+        progress_tx,
+        global_limiter: RateLimiter::new(0),
+        task_limiter: RateLimiter::new(0),
+    };
+
+    client
+        .upload(&PathBuf::from(&local_path), &remote_path, TransferMode::Auto, &mut control)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn hash_str(s: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

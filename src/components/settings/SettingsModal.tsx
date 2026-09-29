@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { Check, FolderCog, Gauge, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, Compass, FolderCog, Gauge, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
+import { Button } from "../ui/Button";
 import { Checkbox, FieldRow, Input } from "../ui/Field";
 import { useSettingsStore, type AccentColor } from "../../store/useSettingsStore";
+import { useOnboardingStore } from "../../store/useOnboardingStore";
 import { api, isTauri } from "../../lib/api";
 import { useToastStore } from "../../store/useToastStore";
 import { friendlyMessage } from "../../lib/friendlyError";
@@ -140,6 +142,18 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             onChange={(e) => setReduceMotion(e.target.checked)}
           />
         </label>
+      </FieldRow>
+
+      <FieldRow label="Help">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            onClose();
+            useOnboardingStore.getState().reset();
+          }}
+        >
+          <Compass size={14} /> Replay welcome tour
+        </Button>
       </FieldRow>
 
       {portable !== null && (

@@ -1,5 +1,7 @@
+import { AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { SplashScreen } from "./components/layout/SplashScreen";
+import { OnboardingTour } from "./components/onboarding/OnboardingTour";
 import { TabBar } from "./components/layout/TabBar";
 import { CommandPalette } from "./components/layout/CommandPalette";
 import { ConnectionWorkspace } from "./components/workspace/ConnectionWorkspace";
@@ -10,6 +12,7 @@ import { ToastContainer } from "./components/layout/ToastContainer";
 import { api } from "./lib/api";
 import { cn } from "./lib/cn";
 import { initSettingsEffects } from "./store/useSettingsStore";
+import { useOnboardingStore } from "./store/useOnboardingStore";
 import { useSitesStore } from "./store/useSitesStore";
 import { useTabsStore } from "./store/useTabsStore";
 import { useTransferStore } from "./store/useTransferStore";
@@ -24,6 +27,7 @@ export default function App() {
   const { tabs, activeTabId } = useTabsStore();
   const settingsModalOpen = useUiStore((s) => s.settingsModalOpen);
   const historyModalOpen = useUiStore((s) => s.historyModalOpen);
+  const onboardingCompleted = useOnboardingStore((s) => s.completed);
 
   useEffect(() => {
     initSettingsEffects();
@@ -37,6 +41,12 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-surface-0 text-zinc-200">
       {showSplash && <SplashScreen appReady={appReady} onExited={() => setShowSplash(false)} />}
+
+      <AnimatePresence>
+        {!showSplash && !onboardingCompleted && (
+          <OnboardingTour onDone={() => useOnboardingStore.getState().complete()} />
+        )}
+      </AnimatePresence>
 
       <TabBar />
 

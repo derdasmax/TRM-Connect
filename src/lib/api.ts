@@ -14,6 +14,8 @@ export const api = {
   connectSavedSite: (siteId: string) => invoke<ConnectionInfo>("connect_saved_site", { siteId }),
   quickConnect: (profile: SiteProfile) => invoke<ConnectionInfo>("quick_connect", { profile }),
   disconnect: (connectionId: string) => invoke<void>("disconnect", { connectionId }),
+  /** TCP-connect latency to host:port in ms; rejects if unreachable/timed out. */
+  pingSite: (host: string, port: number) => invoke<number>("ping_site", { host, port }),
 
   // -- Remote browsing ---------------------------------------------------
   listRemoteDir: (connectionId: string, path: string) =>

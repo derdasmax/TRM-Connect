@@ -86,6 +86,7 @@ pub fn run() {
             commands::connection::connect_saved_site,
             commands::connection::quick_connect,
             commands::connection::disconnect,
+            commands::connection::ping_site,
             commands::browse::list_remote_dir,
             commands::browse::remote_canonicalize,
             commands::browse::remote_mkdir,

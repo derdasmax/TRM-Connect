@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
-import { Plus, Server, Trash2, Pencil, Plug } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Plus, Server, Trash2, Pencil, Plug, RefreshCw } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button, IconButton } from "../ui/Button";
 import { SiteForm } from "./SiteForm";
 import { useSitesStore } from "../../store/useSitesStore";
 import { newSiteProfile, type SiteProfile } from "../../lib/types";
 import { cn } from "../../lib/cn";
+import { api } from "../../lib/api";
 
 interface SiteManagerModalProps {
   open: boolean;
@@ -13,10 +15,62 @@ interface SiteManagerModalProps {
   onConnect: (profile: SiteProfile) => void;
 }
 
+type PingResult = "checking" | number | "error";
+
+/** Colour-coded ping/latency dot: green (<150ms) / amber (150-500ms) / red
+ *  (>500ms or unreachable), pulsing while a check is in flight. TCP-connect
+ *  latency to the site's host:port doubles as a lightweight reachability
+ *  check, since a real ICMP ping needs raw-socket privileges we don't have. */
+function LatencyDot({ result }: { result: PingResult | undefined }) {
+  if (result === undefined || result === "checking") {
+    return (
+      <motion.span
+        className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-500"
+        animate={{ opacity: [0.3, 1, 0.3] }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+        title="Checking..."
+      />
+    );
+  }
+  if (result === "error") {
+    return <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" title="Unreachable" />;
+  }
+  const cls = result < 150 ? "bg-emerald-500" : result < 500 ? "bg-amber-500" : "bg-red-500";
+  return (
+    <motion.span
+      className={cn("h-1.5 w-1.5 shrink-0 rounded-full", cls)}
+      initial={{ scale: 0.5 }}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+      title={`${result} ms`}
+    />
+  );
+}
+
 export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalProps) {
   const { sites, save, remove } = useSitesStore();
   const [editing, setEditing] = useState<SiteProfile | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pings, setPings] = useState<Record<string, PingResult>>({});
+
+  const runHealthChecks = (list: SiteProfile[]) => {
+    setPings((prev) => {
+      const next = { ...prev };
+      for (const s of list) next[s.id] = "checking";
+      return next;
+    });
+    for (const s of list) {
+      api
+        .pingSite(s.host, s.port)
+        .then((ms) => setPings((prev) => ({ ...prev, [s.id]: ms })))
+        .catch(() => setPings((prev) => ({ ...prev, [s.id]: "error" })));
+    }
+  };
+
+  useEffect(() => {
+    if (open && sites.length > 0) runHealthChecks(sites);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, SiteProfile[]>();
@@ -77,6 +131,7 @@ export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalP
                 >
                   <Server size={13} className="shrink-0 text-zinc-500" />
                   <span className="truncate">{s.name}</span>
+                  <LatencyDot result={pings[s.id]} />
                   <span className="ml-auto shrink-0 text-[10px] uppercase text-zinc-600">{s.protocol}</span>
                 </button>
               ))}
@@ -104,6 +159,9 @@ export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalP
             >
               <Trash2 size={15} />
             </IconButton>
+            <IconButton title="Re-check latency" onClick={() => runHealthChecks(sites)} className="ml-auto">
+              <RefreshCw size={14} />
+            </IconButton>
           </div>
 
           {selected ? (
@@ -114,6 +172,15 @@ export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalP
                   {selected.protocol.toUpperCase()} · {selected.username}@{selected.host}:{selected.port}
                 </div>
                 {selected.remote_dir && <div className="text-zinc-500">Dir: {selected.remote_dir}</div>}
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  <LatencyDot result={pings[selected.id]} />
+                  {(() => {
+                    const r = pings[selected.id];
+                    if (r === undefined || r === "checking") return "Checking latency...";
+                    if (r === "error") return "Unreachable";
+                    return `${r} ms`;
+                  })()}
+                </div>
               </div>
               <Button variant="primary" onClick={() => onConnect(selected)} className="mt-3 w-full">
                 <Plug size={14} /> Connect

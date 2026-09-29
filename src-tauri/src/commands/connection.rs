@@ -1,7 +1,9 @@
 use crate::state::{ActiveConnection, AppState};
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::State;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex as AsyncMutex;
 use trm_core::model::SiteProfile;
 use trm_core::protocol;
@@ -68,4 +70,20 @@ pub async fn disconnect(state: State<'_, AppState>, connection_id: String) -> Re
         let _ = client.disconnect().await;
     }
     Ok(())
+}
+
+/// Health-check a saved site: measures TCP connect latency to `host:port`.
+///
+/// This isn't an ICMP "ping" (a sandboxed webview/app has no raw-socket
+/// access to send one on Windows without elevation); a TCP connect to the
+/// actual service port is both more meaningful for "can I reach this
+/// SFTP/FTP server" and requires no special privileges.
+#[tauri::command]
+pub async fn ping_site(host: String, port: u16) -> Result<u64, String> {
+    let start = Instant::now();
+    tokio::time::timeout(Duration::from_secs(5), TcpStream::connect((host.as_str(), port)))
+        .await
+        .map_err(|_| "Timed out".to_string())?
+        .map_err(|e| e.to_string())?;
+    Ok(start.elapsed().as_millis() as u64)
 }

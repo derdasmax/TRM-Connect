@@ -8,6 +8,7 @@ import type { ConnectionInfo } from "../../lib/types";
 interface TopBarProps {
   connection: ConnectionInfo | null;
   connecting: boolean;
+  reconnecting?: boolean;
   hasError?: boolean;
   onQuickConnect: () => void;
   onOpenSiteManager: () => void;
@@ -22,6 +23,7 @@ interface TopBarProps {
 export function TopBar({
   connection,
   connecting,
+  reconnecting,
   hasError,
   onQuickConnect,
   onOpenSiteManager,
@@ -36,11 +38,13 @@ export function TopBar({
 
   const status: ConnectionStatus = connection
     ? "connected"
-    : connecting
-      ? "connecting"
-      : hasError
-        ? "error"
-        : "disconnected";
+    : reconnecting
+      ? "reconnecting"
+      : connecting
+        ? "connecting"
+        : hasError
+          ? "error"
+          : "disconnected";
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-surface-border bg-surface-0 px-3">
@@ -63,12 +67,13 @@ export function TopBar({
       <div className="ml-2 flex items-center gap-1.5 text-[12px] text-zinc-400">
         <ConnectionStatusIcon status={status} size={13} />
         {connecting && <span className="text-accent-400">Connecting…</span>}
+        {reconnecting && <span className="text-amber-400">Reconnecting…</span>}
         {connection && (
           <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400">
             {connection.protocol.toUpperCase()} connected
           </span>
         )}
-        {!connection && !connecting && hasError && <span className="text-red-400">Connection error</span>}
+        {!connection && !connecting && !reconnecting && hasError && <span className="text-red-400">Connection error</span>}
       </div>
 
       <div className="flex-1" />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { Plug, RotateCcw, Server, ShieldCheck, X } from "lucide-react";
+import { Loader2, Plug, RotateCcw, Server, ShieldCheck, X } from "lucide-react";
 import { TopBar } from "../layout/TopBar";
 import { Pane } from "../browser/Pane";
 import { ConflictDialog } from "../transfers/ConflictDialog";
@@ -48,9 +48,19 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   const [dragOverRemote, setDragOverRemote] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sessionRestoreDismissed, setSessionRestoreDismissed] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   const remotePaneRef = useRef<HTMLDivElement>(null);
   const connectionRef = useRef<ConnectionInfo | null>(null);
+  // What to reconnect with (and where to resume browsing) once the active
+  // connection is found to be dead. Cleared on an intentional disconnect so
+  // auto-reconnect never fires after the user chose to disconnect.
+  const lastConnectRef = useRef<{ profile: SiteProfile; siteId: string | null } | null>(null);
+  const remotePathRef = useRef<string>("/");
+  const reconnectPathRef = useRef<string | null>(null);
+  const reconnectAbortRef = useRef(false);
+  const reconnectingRef = useRef(false);
   const { save: saveSite } = useSitesStore();
   const conflictAware = useConflictAwareEnqueue();
   const [useTabUndoStore] = useState(() => createUndoStore());
@@ -73,6 +83,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   }, [connection]);
   useEffect(
     () => () => {
+      reconnectAbortRef.current = true;
       if (connectionRef.current) void api.disconnect(connectionRef.current.connection_id).catch(() => {});
     },
     [],
@@ -106,13 +117,108 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection, remotePane.path]);
 
+  // Tracks the remote pane's current path outside of React state so a
+  // reconnect (triggered from a plain callback, not a render) can read it
+  // without becoming a dependency that would re-run other effects.
+  useEffect(() => {
+    remotePathRef.current = remotePane.path;
+  }, [remotePane.path]);
+
+  // usePane resets its path back to its `initialPath` ("/") whenever the
+  // connection id it's given changes - true for a normal first connect, but
+  // wrong for a reconnect, where the user was mid-directory and expects to
+  // land back where they were. Restore it once the new connection lands.
+  useEffect(() => {
+    if (connection && reconnectPathRef.current) {
+      remotePane.navigate(reconnectPathRef.current);
+      reconnectPathRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection]);
+
   // Tab title/status mirror this workspace's connection state so the tab
   // strip (rendered outside this component) stays in sync.
   useEffect(() => {
-    setTabTitle(tabId, connection ? sites.find((s) => s.id === activeSiteId)?.name || "Connected" : "New Tab");
-    setTabStatus(tabId, connection ? "connected" : connecting ? "connecting" : connectError ? "error" : "disconnected");
+    setTabTitle(
+      tabId,
+      connection || reconnecting ? sites.find((s) => s.id === activeSiteId)?.name || "Connected" : "New Tab",
+    );
+    setTabStatus(
+      tabId,
+      connection
+        ? "connected"
+        : reconnecting
+          ? "reconnecting"
+          : connecting
+            ? "connecting"
+            : connectError
+              ? "error"
+              : "disconnected",
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId, connection, connecting, connectError, activeSiteId, sites]);
+  }, [tabId, connection, connecting, reconnecting, connectError, activeSiteId, sites]);
+
+  // Connection health-check / auto-reconnect: while connected, periodically
+  // probe the session with a lightweight remote call. A real dropped
+  // connection (network blip, server restart, idle timeout) surfaces as a
+  // failure here well before the user notices - stat/list calls elsewhere
+  // would eventually fail too, but only on the next thing they click.
+  useEffect(() => {
+    if (!connection) return;
+    const connectionId = connection.connection_id;
+    const interval = window.setInterval(() => {
+      void api.remoteCanonicalize(connectionId, "/").catch(() => void attemptReconnect());
+    }, 15000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection]);
+
+  async function attemptReconnect() {
+    const saved = lastConnectRef.current;
+    if (!saved || reconnectingRef.current) return;
+    reconnectingRef.current = true;
+    reconnectAbortRef.current = false;
+    reconnectPathRef.current = remotePathRef.current;
+    setConnection(null);
+    setReconnecting(true);
+
+    const backoffMs = [1000, 2000, 4000, 8000, 16000];
+    try {
+      for (let attempt = 1; attempt <= backoffMs.length; attempt++) {
+        if (reconnectAbortRef.current) return;
+        setReconnectAttempt(attempt);
+        try {
+          const info = saved.siteId
+            ? await api.connectSavedSite(saved.siteId)
+            : await api.quickConnect(saved.profile);
+          if (reconnectAbortRef.current) {
+            reconnectPathRef.current = null;
+            void api.disconnect(info.connection_id).catch(() => {});
+            return;
+          }
+          setConnection(info);
+          setConnectError(null);
+          return;
+        } catch {
+          if (attempt === backoffMs.length) {
+            reconnectPathRef.current = null;
+            setConnectError("Connection lost. Automatic reconnect failed after several attempts.");
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, backoffMs[attempt - 1]));
+        }
+      }
+    } finally {
+      setReconnecting(false);
+      reconnectingRef.current = false;
+    }
+  }
+
+  function cancelReconnect() {
+    reconnectAbortRef.current = true;
+    reconnectPathRef.current = null;
+    setReconnecting(false);
+  }
 
   // Exposes this tab's actions to the Command Palette (Ctrl+K), which lives
   // outside any single tab and needs a way to act "on whichever tab is
@@ -220,6 +326,9 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   }, [connection, remotePane.path, remotePane.sep]);
 
   async function handleConnect(profile: SiteProfile, siteId: string | null) {
+    reconnectAbortRef.current = true;
+    reconnectPathRef.current = null;
+    setReconnecting(false);
     setConnecting(true);
     setConnectError(null);
     setQuickConnectOpen(false);
@@ -228,6 +337,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
       const info = siteId ? await api.connectSavedSite(siteId) : await api.quickConnect(profile);
       setConnection(info);
       setActiveSiteId(siteId);
+      lastConnectRef.current = { profile, siteId };
       remotePane.navigate(profile.remote_dir || "/");
       if (siteId) useSessionStore.getState().setLastSite(siteId, profile.remote_dir || null);
       if (info.host_key_fingerprint && info.host_key_matched_pinned == null) {
@@ -241,6 +351,9 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   }
 
   async function handleDisconnect() {
+    reconnectAbortRef.current = true;
+    lastConnectRef.current = null;
+    setReconnecting(false);
     if (connection) await api.disconnect(connection.connection_id).catch(() => {});
     setConnection(null);
     setActiveSiteId(null);
@@ -261,6 +374,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
       <TopBar
         connection={connection}
         connecting={connecting}
+        reconnecting={reconnecting}
         hasError={!!connectError}
         onQuickConnect={() => setQuickConnectOpen(true)}
         onOpenSiteManager={() => setSiteManagerOpen(true)}
@@ -290,7 +404,24 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         </div>
       )}
 
-      {!connection && !connecting && !sessionRestoreDismissed && lastSiteId && sites.some((s) => s.id === lastSiteId) && (
+      {reconnecting && (
+        <div className="flex items-center justify-between border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[13px] text-amber-200">
+          <span className="flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" />
+            Connection lost. Reconnecting… (attempt {reconnectAttempt}/5)
+          </span>
+          <Button variant="ghost" onClick={cancelReconnect} className="!py-0.5 text-amber-200 hover:bg-amber-500/20">
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {!connection &&
+        !connecting &&
+        !reconnecting &&
+        !sessionRestoreDismissed &&
+        lastSiteId &&
+        sites.some((s) => s.id === lastSiteId) && (
         <div className="flex items-center justify-between border-b border-accent-900/40 bg-accent-950/20 px-4 py-2 text-[13px] text-accent-200">
           <span className="flex items-center gap-2">
             <RotateCcw size={14} />
@@ -375,6 +506,11 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
               }}
               dropHighlight={dragOverRemote}
             />
+          ) : reconnecting ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-1 text-zinc-500">
+              <Loader2 size={28} className="animate-spin text-amber-400" />
+              <p className="text-sm">Reconnecting to {currentSiteName ?? "server"}…</p>
+            </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-1 text-zinc-500">
               <p className="text-sm">Not connected</p>

@@ -34,7 +34,7 @@ export function friendlyMessage(raw: string): string {
   if (s.includes("not supported by this protocol")) {
     return "This action isn't supported by the current protocol.";
   }
-  if (s.includes("too large to preview")) {
+  if (s.includes("too large to preview") || s.startsWith("connection lost.")) {
     return raw; // already plain language
   }
   if (s.includes("decryption failed") || s.includes("crypto error")) {

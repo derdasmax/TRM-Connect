@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Plug, PlugZap, ShieldAlert, Unplug } from "lucide-react";
+import { Loader2, Plug, PlugZap, RotateCw, ShieldAlert, Unplug } from "lucide-react";
 import { cn } from "./cn";
 
-export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error" | "syncing";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error" | "syncing" | "reconnecting";
 
 const STATUS_CONFIG: Record<ConnectionStatus, { Icon: typeof Plug; colorClass: string; spin?: boolean }> = {
   disconnected: { Icon: Unplug, colorClass: "text-zinc-500" },
@@ -10,6 +10,7 @@ const STATUS_CONFIG: Record<ConnectionStatus, { Icon: typeof Plug; colorClass: s
   connected: { Icon: PlugZap, colorClass: "text-emerald-400" },
   error: { Icon: ShieldAlert, colorClass: "text-red-400" },
   syncing: { Icon: Loader2, colorClass: "text-accent-400", spin: true },
+  reconnecting: { Icon: RotateCw, colorClass: "text-amber-400", spin: true },
 };
 
 interface ConnectionStatusIconProps {

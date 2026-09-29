@@ -3,9 +3,11 @@ import { persist } from "zustand/middleware";
 import { api } from "../lib/api";
 
 export type ThemeMode = "dark" | "light" | "system";
+export type AccentColor = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan";
 
 interface SettingsState {
   theme: ThemeMode;
+  accentColor: AccentColor;
   reduceMotion: boolean;
   transferQueueCollapsed: boolean;
   /** Bandwidth cap shared by every active transfer, in bytes/sec; 0 = unlimited. */
@@ -15,6 +17,7 @@ interface SettingsState {
   /** Whether to ask for confirmation before deleting files. Off once the user checks "don't ask again". */
   confirmBeforeDelete: boolean;
   setTheme: (theme: ThemeMode) => void;
+  setAccentColor: (color: AccentColor) => void;
   setReduceMotion: (v: boolean) => void;
   setTransferQueueCollapsed: (v: boolean) => void;
   setGlobalBandwidthLimitBps: (v: number) => void;
@@ -26,12 +29,14 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       theme: "dark",
+      accentColor: "violet",
       reduceMotion: false,
       transferQueueCollapsed: false,
       globalBandwidthLimitBps: 0,
       verifyChecksumsDefault: false,
       confirmBeforeDelete: true,
       setTheme: (theme) => set({ theme }),
+      setAccentColor: (accentColor) => set({ accentColor }),
       setReduceMotion: (reduceMotion) => set({ reduceMotion }),
       setTransferQueueCollapsed: (transferQueueCollapsed) => set({ transferQueueCollapsed }),
       setGlobalBandwidthLimitBps: (globalBandwidthLimitBps) => set({ globalBandwidthLimitBps }),
@@ -56,11 +61,15 @@ function applyTheme(theme: ThemeMode) {
 
 export function initSettingsEffects() {
   applyTheme(useSettingsStore.getState().theme);
+  document.documentElement.dataset.accent = useSettingsStore.getState().accentColor;
   document.documentElement.dataset.reduceMotion = String(useSettingsStore.getState().reduceMotion);
   void api.setGlobalBandwidthLimit(useSettingsStore.getState().globalBandwidthLimitBps).catch(() => {});
 
   useSettingsStore.subscribe((state, prev) => {
     if (state.theme !== prev.theme) applyTheme(state.theme);
+    if (state.accentColor !== prev.accentColor) {
+      document.documentElement.dataset.accent = state.accentColor;
+    }
     if (state.reduceMotion !== prev.reduceMotion) {
       document.documentElement.dataset.reduceMotion = String(state.reduceMotion);
     }

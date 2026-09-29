@@ -17,6 +17,13 @@ export const api = {
   /** TCP-connect latency to host:port in ms; rejects if unreachable/timed out. */
   pingSite: (host: string, port: number) => invoke<number>("ping_site", { host, port }),
 
+  // -- Portable mode -------------------------------------------------
+  isPortableMode: () => invoke<boolean>("is_portable_mode"),
+  /** Migrates the saved-site vault to/from the portable data folder and
+   *  restarts the app; the returned promise only resolves on failure, since
+   *  a successful call ends with the process restarting. */
+  setPortableMode: (enabled: boolean) => invoke<void>("set_portable_mode", { enabled }),
+
   // -- Remote browsing ---------------------------------------------------
   listRemoteDir: (connectionId: string, path: string) =>
     invoke<DirEntry[]>("list_remote_dir", { connectionId, path }),

@@ -34,6 +34,42 @@ pub fn app_config_dir() -> PathBuf {
         .join("TRM-Connect")
 }
 
+const PORTABLE_MARKER: &str = "portable.dat";
+
+/// Directory containing the running executable, or the current directory as
+/// a fallback for the rare case it can't be resolved.
+pub fn exe_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+pub fn portable_marker_path() -> PathBuf {
+    exe_dir().join(PORTABLE_MARKER)
+}
+
+/// True once a `portable.dat` marker file sits next to the executable -
+/// written/removed only by the "Portable mode" setting, never by hand.
+pub fn is_portable() -> bool {
+    portable_marker_path().exists()
+}
+
+/// Where the portable data folder lives, next to the executable.
+pub fn portable_data_dir() -> PathBuf {
+    exe_dir().join("TRM-Connect-data")
+}
+
+/// The data directory actually in effect: the portable folder next to the
+/// executable when portable mode is on, `app_config_dir()` otherwise.
+pub fn data_dir() -> PathBuf {
+    if is_portable() {
+        portable_data_dir()
+    } else {
+        app_config_dir()
+    }
+}
+
 pub struct SiteStore {
     path: PathBuf,
     cipher: Arc<dyn SecretCipher>,
@@ -42,7 +78,7 @@ pub struct SiteStore {
 
 impl SiteStore {
     pub fn open(cipher: Arc<dyn SecretCipher>) -> Result<Self, StoreError> {
-        Self::open_at(app_config_dir().join("sites.json"), cipher)
+        Self::open_at(data_dir().join("sites.json"), cipher)
     }
 
     pub fn open_at(path: PathBuf, cipher: Arc<dyn SecretCipher>) -> Result<Self, StoreError> {

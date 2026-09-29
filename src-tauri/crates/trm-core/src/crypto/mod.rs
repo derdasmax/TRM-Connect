@@ -122,6 +122,53 @@ impl SecretCipher for KeyringCipher {
     }
 }
 
+/// Portable-mode backend: a random per-install key stored in a plain file
+/// next to the vault instead of the OS keyring, so the whole data folder
+/// (`sites.json` + this key file) can be copied to another machine - or
+/// carried on a USB stick - and just keep working, unlike `KeyringCipher`'s
+/// key, which DPAPI/Keychain/Secret Service ties to one machine and user.
+/// This is strictly weaker than `KeyringCipher`: anyone with file access to
+/// the folder can decrypt every saved secret. That's the same tradeoff
+/// WinSCP's own portable/INI storage mode makes, not a bug - portability and
+/// OS-backed protection are mutually exclusive.
+pub struct FileKeyCipher {
+    key: [u8; 32],
+}
+
+impl FileKeyCipher {
+    /// Loads the key from `key_path`, or generates and writes a new random
+    /// one on first run.
+    pub fn load_or_init(key_path: &std::path::Path) -> Result<Self, CryptoError> {
+        if let Some(parent) = key_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| CryptoError::Keyring(e.to_string()))?;
+        }
+        if key_path.exists() {
+            let encoded =
+                std::fs::read_to_string(key_path).map_err(|e| CryptoError::Keyring(e.to_string()))?;
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(encoded.trim())
+                .map_err(|_| CryptoError::Encoding)?;
+            let key: [u8; 32] = bytes.try_into().map_err(|_| CryptoError::Encoding)?;
+            Ok(Self { key })
+        } else {
+            let key: [u8; 32] = random_bytes()?;
+            let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+            std::fs::write(key_path, encoded).map_err(|e| CryptoError::Keyring(e.to_string()))?;
+            Ok(Self { key })
+        }
+    }
+}
+
+impl SecretCipher for FileKeyCipher {
+    fn encrypt(&self, plaintext: &str) -> Result<String, CryptoError> {
+        aes_encrypt(&self.key, plaintext)
+    }
+
+    fn decrypt(&self, ciphertext_b64: &str) -> Result<String, CryptoError> {
+        aes_decrypt(&self.key, ciphertext_b64)
+    }
+}
+
 /// Alternative backend: key derived from a user master password via
 /// Argon2id. The salt is not secret and is persisted next to the vault.
 pub struct MasterPasswordCipher {

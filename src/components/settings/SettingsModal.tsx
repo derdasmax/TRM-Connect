@@ -1,8 +1,12 @@
 import { motion } from "framer-motion";
-import { Check, Gauge, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, FolderCog, Gauge, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Checkbox, FieldRow, Input } from "../ui/Field";
 import { useSettingsStore, type AccentColor } from "../../store/useSettingsStore";
+import { api, isTauri } from "../../lib/api";
+import { useToastStore } from "../../store/useToastStore";
+import { friendlyMessage } from "../../lib/friendlyError";
 
 interface SettingsModalProps {
   open: boolean;
@@ -31,6 +35,29 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   } = useSettingsStore();
 
   const limitMBps = globalBandwidthLimitBps === 0 ? "" : (globalBandwidthLimitBps / (1024 * 1024)).toString();
+
+  const [portable, setPortable] = useState<boolean | null>(null);
+  const [switchingPortable, setSwitchingPortable] = useState(false);
+
+  useEffect(() => {
+    if (open && isTauri()) void api.isPortableMode().then(setPortable);
+  }, [open]);
+
+  async function togglePortable() {
+    if (portable === null || switchingPortable) return;
+    setSwitchingPortable(true);
+    try {
+      // On success this never resolves - the backend restarts the process.
+      await api.setPortableMode(!portable);
+    } catch (e) {
+      setSwitchingPortable(false);
+      useToastStore.getState().push({
+        kind: "error",
+        title: "Couldn't switch storage mode",
+        message: friendlyMessage(String(e)),
+      });
+    }
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="Settings" width={420}>
@@ -114,6 +141,27 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
           />
         </label>
       </FieldRow>
+
+      {portable !== null && (
+        <FieldRow label="Storage">
+          <label className="flex items-center gap-2 text-sm text-zinc-300">
+            <FolderCog size={14} className="shrink-0 text-zinc-500" />
+            <Checkbox
+              label="Portable mode"
+              checked={portable}
+              disabled={switchingPortable}
+              onChange={() => void togglePortable()}
+            />
+            {switchingPortable && <Loader2 size={13} className="animate-spin text-zinc-500" />}
+          </label>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Keeps saved connections and settings in a folder next to the app instead of your user
+            profile, so the whole thing can run from a USB stick. Saved passwords are then only as
+            safe as that folder - anyone with file access to it can read them. Switching restarts
+            the app immediately.
+          </p>
+        </FieldRow>
+      )}
     </Modal>
   );
 }

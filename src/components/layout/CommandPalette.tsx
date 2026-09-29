@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
+  History,
   Moon,
   Plug,
   Plus,
@@ -74,6 +75,13 @@ export function CommandPalette() {
         hint: "App",
         Icon: theme === "dark" ? Sun : Moon,
         run: () => useSettingsStore.getState().setTheme(theme === "dark" ? "light" : "dark"),
+      },
+      {
+        id: "history",
+        label: "Transfer History",
+        hint: "App",
+        Icon: History,
+        run: () => useUiStore.getState().openHistoryModal(),
       },
     ];
 

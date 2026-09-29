@@ -27,6 +27,9 @@ interface UiState {
   commandPaletteOpen: boolean;
   openCommandPalette: () => void;
   closeCommandPalette: () => void;
+  historyModalOpen: boolean;
+  openHistoryModal: () => void;
+  closeHistoryModal: () => void;
   activeWorkspaceActions: ActiveWorkspaceActions | null;
   setActiveWorkspaceActions: (actions: ActiveWorkspaceActions | null) => void;
 }
@@ -38,6 +41,9 @@ export const useUiStore = create<UiState>((set) => ({
   commandPaletteOpen: false,
   openCommandPalette: () => set({ commandPaletteOpen: true }),
   closeCommandPalette: () => set({ commandPaletteOpen: false }),
+  historyModalOpen: false,
+  openHistoryModal: () => set({ historyModalOpen: true }),
+  closeHistoryModal: () => set({ historyModalOpen: false }),
   activeWorkspaceActions: null,
   setActiveWorkspaceActions: (actions) => set({ activeWorkspaceActions: actions }),
 }));

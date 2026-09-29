@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import {
   ChevronDown,
+  History,
   Pause,
   Play,
   Square,
@@ -17,6 +18,7 @@ import {
 import { useMemo } from "react";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useTransferStore } from "../../store/useTransferStore";
+import { useUiStore } from "../../store/useUiStore";
 import { formatBytes, formatEta, formatSpeed } from "../../lib/format";
 import { ErrorNotice } from "../common/ErrorNotice";
 import { IconButton } from "../ui/Button";
@@ -174,6 +176,9 @@ export function TransferQueuePanel() {
           )}
         </button>
         <div className="flex gap-1">
+          <IconButton title="Transfer history" onClick={() => useUiStore.getState().openHistoryModal()}>
+            <History size={13} />
+          </IconButton>
           <IconButton title="Pause all" onClick={() => pauseAll()}>
             <Pause size={13} />
           </IconButton>

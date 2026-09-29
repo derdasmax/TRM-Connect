@@ -59,6 +59,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
   const lastSiteId = useSessionStore((s) => s.lastSiteId);
   const sites = useSitesStore((s) => s.sites);
   const { setTabTitle, setTabStatus } = useTabsStore();
+  const currentSiteName = activeSiteId ? sites.find((s) => s.id === activeSiteId)?.name ?? null : null;
 
   useEffect(() => {
     void api.localHomeDir().then(setHomeDir);
@@ -208,6 +209,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
             }));
             void conflictAware.start("upload", connection.connection_id, targets, {
               verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+              siteName: currentSiteName,
             });
           }
         }
@@ -344,6 +346,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
               }));
             void conflictAware.start("upload", connection.connection_id, targets, {
               verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+              siteName: currentSiteName,
             });
           }}
         />
@@ -367,6 +370,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
                   }));
                 void conflictAware.start("download", connection.connection_id, targets, {
                   verifyChecksum: useSettingsStore.getState().verifyChecksumsDefault,
+                  siteName: currentSiteName,
                 });
               }}
               dropHighlight={dragOverRemote}

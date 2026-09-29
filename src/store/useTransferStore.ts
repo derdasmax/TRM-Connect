@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
 import { api, isTauri } from "../lib/api";
+import { useTransferHistoryStore } from "./useTransferHistoryStore";
 import type { TransferStatusEvent, TransferProgressEvent, TransferChecksumEvent, TransferTask } from "../lib/types";
 
 export interface TransferProgressExtra {
@@ -11,6 +12,8 @@ export interface TransferProgressExtra {
 export interface EnqueueOptions {
   speedLimitBps?: number;
   verifyChecksum?: boolean;
+  /** Saved site name, recorded on the history entry once this transfer finishes. */
+  siteName?: string | null;
 }
 
 interface TransferState {
@@ -27,6 +30,8 @@ interface TransferState {
   // here and replayed once the optimistic task entry is created.
   pendingProgress: Record<string, TransferProgressEvent>;
   pendingStatus: Record<string, TransferStatusEvent>;
+  /** Site name captured at enqueue time, for the history entry recorded once each task finishes. */
+  siteNames: Record<string, string | null>;
   init: () => Promise<void>;
   enqueueUpload: (connectionId: string, localPath: string, remotePath: string, opts?: EnqueueOptions) => Promise<void>;
   enqueueDownload: (
@@ -59,6 +64,27 @@ function omit<T extends Record<string, unknown>>(record: T, key: string): T {
   return rest as T;
 }
 
+function basename(path: string): string {
+  return path.split(/[/\\]/).filter(Boolean).pop() ?? path;
+}
+
+function recordHistory(task: TransferTask, siteName: string | null) {
+  if (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") return;
+  useTransferHistoryStore.getState().record({
+    id: task.id,
+    direction: task.direction,
+    name: basename(task.direction === "upload" ? task.local_path : task.remote_path),
+    localPath: task.local_path,
+    remotePath: task.remote_path,
+    totalBytes: task.total_bytes,
+    status: task.status,
+    error: task.error,
+    checksum: task.checksum,
+    siteName,
+    finishedAt: new Date().toISOString(),
+  });
+}
+
 export const useTransferStore = create<TransferState>((set, get) => ({
   tasks: {},
   order: [],
@@ -66,6 +92,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
   progressExtra: {},
   pendingProgress: {},
   pendingStatus: {},
+  siteNames: {},
 
   init: async () => {
     if (initialized) return;
@@ -104,8 +131,15 @@ export const useTransferStore = create<TransferState>((set, get) => ({
         const existing = state.tasks[p.taskId];
         const queueOrder = p.status === "queued" ? state.queueOrder : state.queueOrder.filter((id) => id !== p.taskId);
         if (!existing) return { pendingStatus: { ...state.pendingStatus, [p.taskId]: p }, queueOrder };
+        const updated = { ...existing, status: p.status, error: p.error };
+        if (
+          (p.status === "completed" || p.status === "failed" || p.status === "cancelled") &&
+          existing.status !== p.status
+        ) {
+          recordHistory(updated, state.siteNames[p.taskId] ?? null);
+        }
         return {
-          tasks: { ...state.tasks, [p.taskId]: { ...existing, status: p.status, error: p.error } },
+          tasks: { ...state.tasks, [p.taskId]: updated },
           queueOrder,
         };
       });
@@ -118,6 +152,12 @@ export const useTransferStore = create<TransferState>((set, get) => ({
         if (!existing) return {};
         return { tasks: { ...state.tasks, [p.taskId]: { ...existing, checksum: p.checksum } } };
       });
+      // The checksum result usually lands just after the "completed" status
+      // event that already recorded this task to history - patch it in
+      // rather than leaving the history entry permanently missing it.
+      useTransferHistoryStore.setState((s) => ({
+        entries: s.entries.map((e) => (e.id === p.taskId ? { ...e, checksum: p.checksum } : e)),
+      }));
     });
   },
 
@@ -147,6 +187,9 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       verify_checksum: opts?.verifyChecksum ?? false,
       checksum: null,
     });
+    if (opts?.siteName !== undefined) {
+      set((state) => ({ siteNames: { ...state.siteNames, [taskId]: opts.siteName ?? null } }));
+    }
   },
 
   enqueueDownload: async (connectionId, remotePath, localPath, opts) => {
@@ -175,6 +218,9 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       verify_checksum: opts?.verifyChecksum ?? false,
       checksum: null,
     });
+    if (opts?.siteName !== undefined) {
+      set((state) => ({ siteNames: { ...state.siteNames, [taskId]: opts.siteName ?? null } }));
+    }
   },
 
   pause: (taskId) => api.pauseTransfer(taskId),

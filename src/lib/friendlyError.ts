@@ -37,5 +37,8 @@ export function friendlyMessage(raw: string): string {
   if (s.includes("too large to preview")) {
     return raw; // already plain language
   }
+  if (s.includes("decryption failed") || s.includes("crypto error")) {
+    return "The saved password couldn't be decrypted - it may have been saved on a different machine or the system keychain was reset. Re-enter and save the password to fix this.";
+  }
   return "Something went wrong.";
 }

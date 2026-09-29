@@ -5,6 +5,7 @@ import { CommandPalette } from "./components/layout/CommandPalette";
 import { ConnectionWorkspace } from "./components/workspace/ConnectionWorkspace";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
 import { SettingsModal } from "./components/settings/SettingsModal";
+import { TransferHistoryModal } from "./components/transfers/TransferHistoryModal";
 import { api } from "./lib/api";
 import { cn } from "./lib/cn";
 import { initSettingsEffects } from "./store/useSettingsStore";
@@ -21,6 +22,7 @@ export default function App() {
   const { init: initTransfers } = useTransferStore();
   const { tabs, activeTabId } = useTabsStore();
   const settingsModalOpen = useUiStore((s) => s.settingsModalOpen);
+  const historyModalOpen = useUiStore((s) => s.historyModalOpen);
 
   useEffect(() => {
     initSettingsEffects();
@@ -48,6 +50,7 @@ export default function App() {
       <TransferQueuePanel />
 
       <SettingsModal open={settingsModalOpen} onClose={() => useUiStore.getState().closeSettingsModal()} />
+      <TransferHistoryModal open={historyModalOpen} onClose={() => useUiStore.getState().closeHistoryModal()} />
       <CommandPalette />
     </div>
   );

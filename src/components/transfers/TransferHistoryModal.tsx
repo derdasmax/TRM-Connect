@@ -76,7 +76,7 @@ export function TransferHistoryModal({ open, onClose }: TransferHistoryModalProp
         ))}
       </div>
 
-      <div className="max-h-[50vh] overflow-y-auto rounded-md border border-surface-border">
+      <div className="max-h-[50vh] overflow-y-auto rounded border border-surface-border">
         {filtered.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-sm text-zinc-500">
             {entries.length === 0 ? "No transfers yet" : "No matching transfers"}

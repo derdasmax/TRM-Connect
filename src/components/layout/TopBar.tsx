@@ -1,8 +1,9 @@
-import { Cloud, FolderSync, Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug, Zap } from "lucide-react";
+import { Cloud, FolderSync, Moon, Plug, Redo2, Search, Server, Settings, Sun, Undo2, Unplug } from "lucide-react";
 import { Button, IconButton } from "../ui/Button";
 import { ConnectionStatusIcon, type ConnectionStatus } from "../../lib/ConnectionStatusIcon";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useUiStore } from "../../store/useUiStore";
+import { cn } from "../../lib/cn";
 import type { ConnectionInfo } from "../../lib/types";
 
 interface TopBarProps {
@@ -21,6 +22,15 @@ interface TopBarProps {
   onSyncDirectories?: () => void;
   onCloudSync?: () => void;
 }
+
+const PILL_STYLES: Record<ConnectionStatus, string> = {
+  connected: "bg-emerald-500/10 text-emerald-400",
+  connecting: "bg-accent-600/15 text-accent-400",
+  reconnecting: "bg-amber-500/15 text-amber-300",
+  error: "bg-red-500/10 text-red-400",
+  disconnected: "bg-surface-2 text-zinc-500",
+  syncing: "bg-accent-600/15 text-accent-400",
+};
 
 export function TopBar({
   connection,
@@ -50,17 +60,18 @@ export function TopBar({
           ? "error"
           : "disconnected";
 
+  const pillLabel = connection
+    ? `${connection.protocol.toUpperCase()} connected`
+    : reconnecting
+      ? "Reconnecting…"
+      : connecting
+        ? "Connecting…"
+        : hasError
+          ? "Connection error"
+          : "Not connected";
+
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-surface-border bg-surface-0 px-3">
-      <div className="flex items-center gap-1.5 pr-2">
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-accent-600">
-          <Zap size={12} className="text-white" fill="currentColor" />
-        </div>
-        <span className="text-sm font-semibold text-zinc-100">TRM-Connect</span>
-      </div>
-
-      <div className="h-5 w-px bg-surface-border" />
-
+    <div className="fluent-card mx-2 mt-2 flex h-11 shrink-0 items-center gap-1.5 px-2">
       <Button variant="ghost" onClick={onOpenSiteManager}>
         <Server size={14} /> Site Manager
       </Button>
@@ -68,17 +79,12 @@ export function TopBar({
         <Plug size={14} /> Quick Connect
       </Button>
 
-      <div className="ml-2 flex items-center gap-1.5 text-[12px] text-zinc-400">
+      <div className="mx-1 h-5 w-px bg-surface-border" />
+
+      <span className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium", PILL_STYLES[status])}>
         <ConnectionStatusIcon status={status} size={13} />
-        {connecting && <span className="text-accent-400">Connecting…</span>}
-        {reconnecting && <span className="text-amber-400">Reconnecting…</span>}
-        {connection && (
-          <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400">
-            {connection.protocol.toUpperCase()} connected
-          </span>
-        )}
-        {!connection && !connecting && !reconnecting && hasError && <span className="text-red-400">Connection error</span>}
-      </div>
+        {pillLabel}
+      </span>
 
       <div className="flex-1" />
 

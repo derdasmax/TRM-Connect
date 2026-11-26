@@ -20,9 +20,15 @@ export interface ActiveWorkspaceActions {
 /** Transient, non-persisted global UI state - things like "is a modal open"
  *  that any tab's toolbar can trigger but that only ever has one instance
  *  app-wide (so it lives outside any per-tab component). */
+export type SettingsSection = "appearance" | "transfers" | "updates" | "storage" | "about";
+
 interface UiState {
   settingsModalOpen: boolean;
-  openSettingsModal: () => void;
+  /** Which Settings nav section to land on next time it opens - set by
+   *  `openSettingsModal("updates")` (e.g. from the titlebar update pill or
+   *  Command Palette) and consumed once by SettingsModal's own `open` effect. */
+  settingsInitialSection: SettingsSection;
+  openSettingsModal: (section?: SettingsSection) => void;
   closeSettingsModal: () => void;
   commandPaletteOpen: boolean;
   openCommandPalette: () => void;
@@ -36,7 +42,8 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   settingsModalOpen: false,
-  openSettingsModal: () => set({ settingsModalOpen: true }),
+  settingsInitialSection: "appearance",
+  openSettingsModal: (section) => set({ settingsModalOpen: true, settingsInitialSection: section ?? "appearance" }),
   closeSettingsModal: () => set({ settingsModalOpen: false }),
   commandPaletteOpen: false,
   openCommandPalette: () => set({ commandPaletteOpen: true }),

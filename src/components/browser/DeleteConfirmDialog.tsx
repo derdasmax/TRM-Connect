@@ -25,7 +25,7 @@ export function DeleteConfirmDialog({ entries, onCancel, onConfirm }: DeleteConf
       <p className="mb-2 text-sm text-zinc-300">
         Delete {entries.length} item{entries.length === 1 ? "" : "s"}? This cannot be undone.
       </p>
-      <ul className="mb-3 max-h-32 list-disc space-y-0.5 overflow-y-auto rounded-md bg-surface-2/50 px-6 py-2 text-[12px] text-zinc-400">
+      <ul className="mb-3 max-h-32 list-disc space-y-0.5 overflow-y-auto rounded bg-surface-2/50 px-6 py-2 text-[12px] text-zinc-400">
         {names.map((n) => (
           <li key={n} className="truncate">
             {n}

@@ -72,21 +72,21 @@ export function Modal({ open, onClose, title, children, width = 480 }: ModalProp
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-surface-border bg-surface-1 shadow-2xl"
+            className="glass-flyout flex max-h-[85vh] flex-col overflow-hidden"
             style={{ width }}
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 4 }}
-            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
             <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
-              <h2 id={titleId} className="text-sm font-medium text-zinc-100">
+              <h2 id={titleId} className="text-sm font-semibold text-zinc-100">
                 {title}
               </h2>
               <button
                 onClick={onClose}
                 aria-label="Close"
-                className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-surface-2 hover:text-zinc-100"
+                className="rounded p-1 text-zinc-400 transition-colors duration-150 ease-out hover:bg-surface-2 hover:text-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-500"
               >
                 <X size={16} />
               </button>

@@ -143,7 +143,7 @@ export function CloudSyncDialog({ open, onClose, connectionId, suggestedPath }: 
       </FieldRow>
 
       {error && (
-        <div className="mb-3 rounded-md border border-red-900/40 bg-red-950/40 px-3 py-2 text-[12px] text-red-300">
+        <div className="mb-3 rounded border border-red-900/40 bg-red-950/40 px-3 py-2 text-[12px] text-red-300">
           <ErrorNotice raw={error} />
         </div>
       )}

@@ -64,7 +64,7 @@ export function ChmodDialog({ entry, onClose, onSubmit }: ChmodDialogProps) {
         <input
           value={octal}
           onChange={(e) => /^[0-7]{0,3}$/.test(e.target.value) && setOctal(e.target.value)}
-          className="w-16 rounded-md border border-surface-border bg-surface-2 px-2 py-1 text-center font-mono text-sm text-zinc-100 outline-none focus:border-accent-500"
+          className="w-16 rounded border border-surface-border bg-surface-2 px-2 py-1 text-center font-mono text-sm text-zinc-100 outline-none focus:border-accent-500"
         />
       </div>
       <div className="flex justify-end gap-2">

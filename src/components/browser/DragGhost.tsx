@@ -25,7 +25,7 @@ export function DragGhost({ info }: { info: DragGhostInfo | null }) {
           animate={{ opacity: 1, scale: info.armed ? 1.05 : 1 }}
           exit={{ opacity: 0, scale: 0.85 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg border border-surface-border bg-surface-2/95 px-3 py-2 text-[12px] text-zinc-200 shadow-xl backdrop-blur"
+          className="glass-flyout pointer-events-none fixed z-50 flex items-center gap-2 px-3 py-2 text-[12px] text-zinc-200"
           style={{ left: info.x + 16, top: info.y + 16 }}
         >
           <motion.span

@@ -40,12 +40,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       {items && (
         <motion.div
           ref={ref}
-          className="fixed z-50 min-w-[170px] overflow-hidden rounded-lg border border-surface-border bg-surface-2 py-1 shadow-2xl"
+          className="glass-flyout fixed z-50 min-w-[170px] overflow-hidden py-1"
           style={{ left: x, top: y }}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.1 }}
+          transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
         >
           {items.map((item, i) => {
             const Icon = item.icon;

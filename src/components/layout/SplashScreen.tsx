@@ -102,7 +102,7 @@ export function SplashScreen({ appReady, onExited }: SplashScreenProps) {
           initial={reduceMotion ? false : { scale: 0.4, opacity: 0, rotate: -20 }}
           animate={{ scale: 1, opacity: 1, rotate: 0 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 shadow-[0_0_40px_rgba(124,58,237,0.55)]"
+          className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 shadow-[0_0_40px_color-mix(in_srgb,var(--color-accent-600)_55%,transparent)]"
         >
           <Zap size={28} className="text-white" fill="currentColor" />
         </motion.div>

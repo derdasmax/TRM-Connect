@@ -30,7 +30,7 @@ export function ToastContainer() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 40, scale: 0.95, transition: { duration: 0.15 } }}
               transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              className="pointer-events-auto flex items-start gap-2.5 rounded-lg border border-surface-border bg-surface-2/95 p-3 shadow-xl backdrop-blur"
+              className="glass-flyout pointer-events-auto flex items-start gap-2.5 p-3"
             >
               <Icon size={16} className={cn("mt-0.5 shrink-0", cls)} />
               <div className="min-w-0 flex-1">

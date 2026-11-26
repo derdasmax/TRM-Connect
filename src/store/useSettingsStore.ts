@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { api } from "../lib/api";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { api, isTauri } from "../lib/api";
 
 export type ThemeMode = "dark" | "light" | "system";
 export type AccentColor = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan";
@@ -16,6 +17,8 @@ interface SettingsState {
   verifyChecksumsDefault: boolean;
   /** Whether to ask for confirmation before deleting files. Off once the user checks "don't ask again". */
   confirmBeforeDelete: boolean;
+  /** Silently check GitHub Releases for a newer build right after the splash screen closes. */
+  autoCheckForUpdates: boolean;
   setTheme: (theme: ThemeMode) => void;
   setAccentColor: (color: AccentColor) => void;
   setReduceMotion: (v: boolean) => void;
@@ -23,18 +26,20 @@ interface SettingsState {
   setGlobalBandwidthLimitBps: (v: number) => void;
   setVerifyChecksumsDefault: (v: boolean) => void;
   setConfirmBeforeDelete: (v: boolean) => void;
+  setAutoCheckForUpdates: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       theme: "dark",
-      accentColor: "violet",
+      accentColor: "blue",
       reduceMotion: false,
       transferQueueCollapsed: false,
       globalBandwidthLimitBps: 0,
       verifyChecksumsDefault: false,
       confirmBeforeDelete: true,
+      autoCheckForUpdates: true,
       setTheme: (theme) => set({ theme }),
       setAccentColor: (accentColor) => set({ accentColor }),
       setReduceMotion: (reduceMotion) => set({ reduceMotion }),
@@ -42,8 +47,22 @@ export const useSettingsStore = create<SettingsState>()(
       setGlobalBandwidthLimitBps: (globalBandwidthLimitBps) => set({ globalBandwidthLimitBps }),
       setVerifyChecksumsDefault: (verifyChecksumsDefault) => set({ verifyChecksumsDefault }),
       setConfirmBeforeDelete: (confirmBeforeDelete) => set({ confirmBeforeDelete }),
+      setAutoCheckForUpdates: (autoCheckForUpdates) => set({ autoCheckForUpdates }),
     }),
-    { name: "trm-connect.settings" },
+    {
+      name: "trm-connect.settings",
+      version: 2,
+      // v1 -> v2: the default accent moved from a generic violet to Windows
+      // Blue (#0078d4) for the Fluent/Win11 redesign. Only installs that
+      // never touched the setting (still sitting on the old "violet"
+      // default) get carried forward - a deliberate pick of violet is just
+      // a regular accent choice and stays untouched by a version bump.
+      migrate: (persisted) => {
+        const state = persisted as SettingsState;
+        if (state.accentColor === "violet") state.accentColor = "blue";
+        return state;
+      },
+    },
   ),
 );
 
@@ -57,6 +76,11 @@ function applyTheme(theme: ThemeMode) {
       : theme;
   root.classList.toggle("dark", resolved === "dark");
   root.style.colorScheme = resolved;
+  // Keeps the Mica tint in sync with the *resolved app theme*, not the raw
+  // OS theme - otherwise a user running the app in light mode on a
+  // dark-mode desktop (or vice versa) would get a Mica tint that fights
+  // the rest of the UI.
+  if (isTauri()) void getCurrentWindow().setTheme(resolved).catch(() => {});
 }
 
 export function initSettingsEffects() {

@@ -113,7 +113,7 @@ export function OnboardingTour({ onDone }: OnboardingTourProps) {
         <button
           onClick={onDone}
           aria-label="Skip tour"
-          className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-zinc-500 transition-colors hover:bg-surface-2 hover:text-zinc-300"
+          className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded px-2 py-1 text-[11px] text-zinc-500 transition-colors hover:bg-surface-2 hover:text-zinc-300"
         >
           Skip tour <X size={12} />
         </button>
@@ -128,7 +128,7 @@ export function OnboardingTour({ onDone }: OnboardingTourProps) {
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center gap-4"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 shadow-[0_0_30px_rgba(124,58,237,0.4)]">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-600 shadow-[0_0_30px_color-mix(in_srgb,var(--color-accent-600)_40%,transparent)]">
                 <step.Icon size={26} className="text-white" />
               </div>
               <h2 className="text-lg font-semibold text-zinc-100">{step.title}</h2>

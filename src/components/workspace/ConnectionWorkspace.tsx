@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { Loader2, Plug, RotateCcw, Server, ShieldCheck, X } from "lucide-react";
+import { Loader2, Plug, RotateCcw, Server, ShieldCheck } from "lucide-react";
 import { TopBar } from "../layout/TopBar";
 import { Pane } from "../browser/Pane";
 import { DragGhost, type DragGhostInfo } from "../browser/DragGhost";
@@ -10,7 +10,8 @@ import { CloudSyncDialog } from "../sync/CloudSyncDialog";
 import { SiteManagerModal } from "../sitemanager/SiteManagerModal";
 import { QuickConnectModal } from "../sitemanager/QuickConnectModal";
 import { ErrorNotice } from "../common/ErrorNotice";
-import { Button, IconButton } from "../ui/Button";
+import { Button } from "../ui/Button";
+import { InfoBar } from "../ui/InfoBar";
 import { usePane } from "../../hooks/usePane";
 import { joinPath } from "../../lib/format";
 import { useConflictAwareEnqueue } from "../../hooks/useConflictAwareEnqueue";
@@ -454,33 +455,29 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
       />
 
       {connectError && (
-        <div className="flex items-center justify-between border-b border-red-900/40 bg-red-950/40 px-4 py-2 text-[13px] text-red-300">
+        <InfoBar variant="error" onDismiss={() => setConnectError(null)}>
           <ErrorNotice raw={connectError} />
-          <IconButton onClick={() => setConnectError(null)} title="Dismiss">
-            <X size={14} />
-          </IconButton>
-        </div>
+        </InfoBar>
       )}
 
       {actionError && (
-        <div className="flex items-center justify-between border-b border-red-900/40 bg-red-950/40 px-4 py-2 text-[13px] text-red-300">
+        <InfoBar variant="error" onDismiss={() => setActionError(null)}>
           <ErrorNotice raw={actionError} />
-          <IconButton onClick={() => setActionError(null)} title="Dismiss">
-            <X size={14} />
-          </IconButton>
-        </div>
+        </InfoBar>
       )}
 
       {reconnecting && (
-        <div className="flex items-center justify-between border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[13px] text-amber-200">
-          <span className="flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" />
-            Connection lost. Reconnecting… (attempt {reconnectAttempt}/5)
-          </span>
-          <Button variant="ghost" onClick={cancelReconnect} className="!py-0.5 text-amber-200 hover:bg-amber-500/20">
-            Cancel
-          </Button>
-        </div>
+        <InfoBar
+          variant="warning"
+          icon={<Loader2 size={15} className="animate-spin" />}
+          actions={
+            <Button variant="ghost" onClick={cancelReconnect} className="!py-0.5 text-amber-200 hover:bg-amber-500/20">
+              Cancel
+            </Button>
+          }
+        >
+          Connection lost. Reconnecting… (attempt {reconnectAttempt}/5)
+        </InfoBar>
       )}
 
       {!connection &&
@@ -489,42 +486,38 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
         !sessionRestoreDismissed &&
         lastSiteId &&
         sites.some((s) => s.id === lastSiteId) && (
-        <div className="flex items-center justify-between border-b border-accent-900/40 bg-accent-950/20 px-4 py-2 text-[13px] text-accent-200">
-          <span className="flex items-center gap-2">
-            <RotateCcw size={14} />
-            Reconnect to {sites.find((s) => s.id === lastSiteId)?.name}?
-          </span>
-          <div className="flex items-center gap-2">
+        <InfoBar
+          variant="info"
+          icon={<RotateCcw size={15} />}
+          onDismiss={() => setSessionRestoreDismissed(true)}
+          actions={
             <Button variant="ghost" onClick={() => void restoreLastSession()} className="!py-0.5 text-accent-200 hover:bg-accent-500/20">
               <Plug size={13} /> Reconnect
             </Button>
-            <IconButton onClick={() => setSessionRestoreDismissed(true)} title="Dismiss">
-              <X size={14} />
-            </IconButton>
-          </div>
-        </div>
+          }
+        >
+          Reconnect to {sites.find((s) => s.id === lastSiteId)?.name}?
+        </InfoBar>
       )}
 
       {hostKeyNotice && (
-        <div className="flex items-center justify-between border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[13px] text-amber-200">
-          <span className="flex items-center gap-2">
-            <ShieldCheck size={14} />
-            First connection to this server. Host key fingerprint: <code className="font-mono">{hostKeyNotice.fingerprint}</code>
-          </span>
-          <div className="flex items-center gap-2">
-            {hostKeyNotice.canPin && (
+        <InfoBar
+          variant="warning"
+          icon={<ShieldCheck size={15} />}
+          onDismiss={() => setHostKeyNotice(null)}
+          actions={
+            hostKeyNotice.canPin ? (
               <Button variant="ghost" onClick={trustHostKey} className="!py-0.5 text-amber-200 hover:bg-amber-500/20">
                 <ShieldCheck size={13} /> Trust &amp; remember
               </Button>
-            )}
-            <IconButton onClick={() => setHostKeyNotice(null)} title="Dismiss">
-              <X size={14} />
-            </IconButton>
-          </div>
-        </div>
+            ) : undefined
+          }
+        >
+          First connection to this server. Host key fingerprint: <code className="font-mono">{hostKeyNotice.fingerprint}</code>
+        </InfoBar>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 gap-2 p-2">
         <Pane
           title="Local"
           pane={localPane}
@@ -548,8 +541,7 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
             });
           }}
         />
-        <div className="w-px shrink-0 bg-surface-border" />
-        <div ref={remotePaneRef} className="flex min-w-0 flex-1">
+        <div ref={remotePaneRef} className="flex min-w-0 flex-1 overflow-hidden rounded-lg">
           {connection ? (
             <Pane
               title="Remote"
@@ -574,12 +566,12 @@ export function ConnectionWorkspace({ tabId, active }: ConnectionWorkspaceProps)
               dropHighlight={dragOverRemote}
             />
           ) : reconnecting ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-1 text-zinc-500">
+            <div className="fluent-card flex flex-1 flex-col items-center justify-center gap-3 text-zinc-500">
               <Loader2 size={28} className="animate-spin text-amber-400" />
               <p className="text-sm">Reconnecting to {currentSiteName ?? "server"}…</p>
             </div>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-surface-1 text-zinc-500">
+            <div className="fluent-card flex flex-1 flex-col items-center justify-center gap-3 text-zinc-500">
               <p className="text-sm">Not connected</p>
               <div className="flex gap-2">
                 <Button variant="primary" onClick={() => setQuickConnectOpen(true)}>

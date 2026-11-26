@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 description = "TRM-Connect - modern SFTP/FTP/FTPS/SCP client"
 authors = ["TRM-Connect contributors"]
 license = "MIT"
@@ -31,6 +31,8 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-os = "2.3.2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 tokio = { version = "1.53.1", features = ["full"] }
 anyhow = "1.0.104"
 uuid = { version = "1.26.0", features = ["v4", "serde"] }

@@ -2,7 +2,7 @@ import { AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { SplashScreen } from "./components/layout/SplashScreen";
 import { OnboardingTour } from "./components/onboarding/OnboardingTour";
-import { TabBar } from "./components/layout/TabBar";
+import { TitleBar } from "./components/layout/TitleBar";
 import { CommandPalette } from "./components/layout/CommandPalette";
 import { ConnectionWorkspace } from "./components/workspace/ConnectionWorkspace";
 import { TransferQueuePanel } from "./components/transfers/TransferQueuePanel";
@@ -11,12 +11,14 @@ import { TransferHistoryModal } from "./components/transfers/TransferHistoryModa
 import { ToastContainer } from "./components/layout/ToastContainer";
 import { api } from "./lib/api";
 import { cn } from "./lib/cn";
-import { initSettingsEffects } from "./store/useSettingsStore";
+import { initSettingsEffects, useSettingsStore } from "./store/useSettingsStore";
+import { initWindowChrome } from "./lib/windowChrome";
 import { useOnboardingStore } from "./store/useOnboardingStore";
 import { useSitesStore } from "./store/useSitesStore";
 import { useTabsStore } from "./store/useTabsStore";
 import { useTransferStore } from "./store/useTransferStore";
 import { useUiStore } from "./store/useUiStore";
+import { useUpdateStore } from "./store/useUpdateStore";
 
 export default function App() {
   const [appReady, setAppReady] = useState(false);
@@ -31,6 +33,7 @@ export default function App() {
 
   useEffect(() => {
     initSettingsEffects();
+    void initWindowChrome();
     // The splash overlay never gates this - real init starts immediately and
     // runs underneath it; `appReady` only tells the splash when it's allowed
     // to close. Per-tab state (home dir, connections) is resolved by each
@@ -38,8 +41,17 @@ export default function App() {
     Promise.allSettled([loadSites(), initTransfers(), api.localHomeDir()]).then(() => setAppReady(true));
   }, [loadSites, initTransfers]);
 
+  useEffect(() => {
+    // Fires once, right as the splash closes - a silent background check,
+    // never blocking startup and never surfacing anything beyond the
+    // titlebar pill unless the user opens Settings > Updates themselves.
+    if (!showSplash && useSettingsStore.getState().autoCheckForUpdates) {
+      void useUpdateStore.getState().check();
+    }
+  }, [showSplash]);
+
   return (
-    <div className="flex h-screen flex-col bg-surface-0 text-zinc-200">
+    <div className="flex h-screen flex-col text-zinc-200">
       {showSplash && <SplashScreen appReady={appReady} onExited={() => setShowSplash(false)} />}
 
       <AnimatePresence>
@@ -48,7 +60,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <TabBar />
+      <TitleBar />
 
       <div className="flex min-h-0 flex-1 flex-col">
         {tabs.map((tab) => (

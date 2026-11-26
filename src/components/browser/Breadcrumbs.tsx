@@ -34,7 +34,7 @@ export function Breadcrumbs({ path, sep, onNavigate }: BreadcrumbsProps) {
             setEditing(false);
           }
         }}
-        className="w-full rounded-md border border-accent-500 bg-surface-2 px-2 py-1 font-mono text-[12px] text-zinc-100 outline-none"
+        className="w-full rounded border border-accent-500 bg-surface-2 px-2 py-1 font-mono text-[12px] text-zinc-100 outline-none"
       />
     );
   }
@@ -61,7 +61,7 @@ export function Breadcrumbs({ path, sep, onNavigate }: BreadcrumbsProps) {
   return (
     <button
       onDoubleClick={() => setEditing(true)}
-      className="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap rounded-md bg-surface-2 px-2 py-1 text-left font-mono text-[12px] text-zinc-400"
+      className="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap rounded bg-surface-2 px-2 py-1 text-left font-mono text-[12px] text-zinc-400"
       title="Double-click to edit path"
     >
       {crumbs.map((c, i) => (

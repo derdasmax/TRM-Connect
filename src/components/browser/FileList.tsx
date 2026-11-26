@@ -306,7 +306,7 @@ export function FileList({
               role="option"
               aria-selected={selected}
               className={cn(
-                "group flex select-none items-center gap-2 rounded-md px-2 text-[13px] text-zinc-300",
+                "group flex select-none items-center gap-2 rounded px-2 text-[13px] text-zinc-300",
                 selected ? "bg-accent-600/25 text-zinc-100" : "hover:bg-surface-2",
               )}
               onClick={(e) => {

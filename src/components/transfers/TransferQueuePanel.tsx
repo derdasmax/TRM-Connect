@@ -188,7 +188,7 @@ export function TransferQueuePanel() {
   const active = activeList.filter((t) => t.status === "running").length + queuedList.length;
 
   return (
-    <div className="flex flex-col border-t border-surface-border bg-surface-1">
+    <div className="fluent-card mx-2 mb-2 flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5">
         <button
           onClick={() => setTransferQueueCollapsed(!transferQueueCollapsed)}

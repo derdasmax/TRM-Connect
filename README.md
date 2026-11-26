@@ -181,6 +181,31 @@ first run. To sign it later:
    automatically once a thumbprint/command is configured — no other code
    changes needed.
 
+## Releasing & Updates
+
+The app checks `https://github.com/derdasmax/TRM-Connect/releases/latest/download/latest.json`
+for updates (via `tauri-plugin-updater`) and installs them in place through
+`tauri-plugin-process`'s `relaunch()` — no reinstall needed. Every build is
+signed with an Ed25519 keypair (`tauri signer generate`); the public half is
+already in `tauri.conf.json` (`plugins.updater.pubkey`), and the private half
+must exist only as the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — never commit it to the repository.
+
+To ship a release:
+
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml`, and
+   `src-tauri/tauri.conf.json` (all three — they're independent and nothing
+   cross-checks them).
+2. Push a `vX.Y.Z` tag matching that version (`git tag v0.2.1 && git push
+   origin v0.2.1`).
+3. `.github/workflows/build-windows.yml`'s `release` job builds, signs (using
+   the secrets above), and publishes a **non-draft** GitHub Release with the
+   NSIS/MSI installers plus `latest.json` attached — a draft release never
+   shows up as "latest", so the updater would never find it.
+4. Already-installed copies pick it up next time they check (on startup if
+   "Check for updates automatically" is on in Settings, or via Settings →
+   Updates → "Check for updates" / the Command Palette).
+
 ## Development
 
 ```bash

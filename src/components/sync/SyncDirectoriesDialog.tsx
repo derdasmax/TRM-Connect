@@ -137,7 +137,7 @@ export function SyncDirectoriesDialog({
       )}
 
       {!loading && error && (
-        <div className="rounded-md border border-red-900/40 bg-red-950/40 px-3 py-2 text-[12px] text-red-300">
+        <div className="rounded border border-red-900/40 bg-red-950/40 px-3 py-2 text-[12px] text-red-300">
           <ErrorNotice raw={error} />
         </div>
       )}
@@ -149,7 +149,7 @@ export function SyncDirectoriesDialog({
               Already in sync ({result.same_count} matching item{result.same_count === 1 ? "" : "s"}).
             </div>
           ) : (
-            <div className="max-h-[50vh] overflow-y-auto rounded-md border border-surface-border">
+            <div className="max-h-[50vh] overflow-y-auto rounded border border-surface-border">
               {result.entries.map((entry) => {
                 const action = actions[entry.relative_path] ?? "skip";
                 return (

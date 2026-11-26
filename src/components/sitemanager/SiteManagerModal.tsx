@@ -108,7 +108,7 @@ export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalP
   return (
     <Modal open={open} onClose={onClose} title="Site Manager" width={560}>
       <div className="flex h-[380px] gap-3">
-        <div className="flex w-56 flex-col overflow-y-auto rounded-md border border-surface-border bg-surface-2/50">
+        <div className="flex w-56 flex-col overflow-y-auto rounded border border-surface-border bg-surface-2/50">
           {sites.length === 0 && (
             <div className="p-3 text-center text-xs text-zinc-500">No saved sites yet</div>
           )}
@@ -165,7 +165,7 @@ export function SiteManagerModal({ open, onClose, onConnect }: SiteManagerModalP
           </div>
 
           {selected ? (
-            <div className="flex flex-1 flex-col justify-between rounded-md border border-surface-border bg-surface-2/40 p-3">
+            <div className="flex flex-1 flex-col justify-between rounded border border-surface-border bg-surface-2/40 p-3">
               <div className="space-y-1.5 text-[13px]">
                 <div className="text-sm font-medium text-zinc-100">{selected.name}</div>
                 <div className="text-zinc-400">

@@ -1,23 +1,41 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 
-  --color-accent-50: #f5f3ff;
-  --color-accent-400: #a78bfa;
-  --color-accent-500: #8b5cf6;
-  --color-accent-600: #7c3aed;
-  --color-accent-700: #6d28d9;
+  /* Windows Blue (#0078d4) - the Fluent/Win11 system accent, and this app's
+     default accent. Other accent choices keep their own full ramps below so
+     every `bg-accent-*`, `text-accent-*`, `border-accent-*` utility resolves
+     no matter which one is active (ConnectionWorkspace reaches all the way
+     from 200 to 950). */
+  --color-accent-50: #eff6fc;
+  --color-accent-100: #dceefc;
+  --color-accent-200: #b6ddf7;
+  --color-accent-300: #85c4f0;
+  --color-accent-400: #4ea8e6;
+  --color-accent-500: #1f8fdb;
+  --color-accent-600: #0078d4;
+  --color-accent-700: #005ea6;
+  --color-accent-800: #00467d;
+  --color-accent-900: #002f54;
+  --color-accent-950: #001b30;
 
-  --color-surface-0: #0b0c10;
-  --color-surface-1: #121319;
-  --color-surface-2: #191b22;
-  --color-surface-3: #22242e;
-  --color-surface-border: #2b2e39;
+  /* Fluent neutral layers. surface-0 is the "canvas" - transparent when
+     Mica is actually compositing behind the window (see `data-mica-active`
+     below), opaque otherwise. surface-1/2/3 are solid content layers (cards,
+     controls) that sit *on* the canvas and stay opaque either way, matching
+     how Win11's own Settings/Explorer render list rows and cards over the
+     translucent Mica background. */
+  --color-surface-0: #202020;
+  --color-surface-1: #2c2c2c;
+  --color-surface-2: #333333;
+  --color-surface-3: #3f3f3f;
+  --color-surface-border: rgba(255, 255, 255, 0.08);
 
-  --animate-fade-in: fade-in 120ms ease-out;
-  --animate-slide-up: slide-up 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-slide-up: slide-up 180ms cubic-bezier(0.23, 1, 0.32, 1);
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -31,6 +49,13 @@
 
 :root {
   color-scheme: dark;
+  /* Acrylic material used by `.glass-flyout` (Modal, ContextMenu, Command
+     Palette, Toasts, DragGhost, Quick Look). Semi-opaque + blur + a bright
+     1px inner edge, standing apart from the opaque surface-* card layers. */
+  --acrylic-bg: rgba(44, 44, 44, 0.78);
+  --acrylic-border: rgba(255, 255, 255, 0.09);
+  --acrylic-highlight: rgba(255, 255, 255, 0.06);
+  --acrylic-blur: blur(28px) saturate(150%);
 }
 
 /*
@@ -49,11 +74,15 @@
  */
 :root:not(.dark) {
   color-scheme: light;
-  --color-surface-0: #f4f4f6;
+  --color-surface-0: #f3f3f3;
   --color-surface-1: #ffffff;
-  --color-surface-2: #eef0f3;
-  --color-surface-3: #e2e4e9;
-  --color-surface-border: #d8dae0;
+  --color-surface-2: #f9f9f9;
+  --color-surface-3: #ececec;
+  --color-surface-border: rgba(0, 0, 0, 0.07);
+
+  --acrylic-bg: rgba(252, 252, 252, 0.8);
+  --acrylic-border: rgba(0, 0, 0, 0.06);
+  --acrylic-highlight: rgba(255, 255, 255, 0.6);
 }
 
 :root:not(.dark) .text-zinc-100 { color: #18181b !important; }
@@ -85,9 +114,25 @@ html, body, #root {
 
 body {
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
+  background: var(--color-surface-0);
+  transition: background-color 200ms ease;
+}
+
+/*
+ * Mica (and its light-mode equivalent) is an OS compositing effect that
+ * paints *behind* the webview - the page itself must turn transparent for
+ * it to show through. `windowChrome.ts` sets this attribute only once it
+ * has confirmed both that we're actually in Tauri and that the OS is
+ * Windows 11 (build >= 22000); everywhere else (Windows 10, Linux/macOS
+ * dev, the plain browser) keeps the opaque `surface-0` fallback above so
+ * the window never renders as a transparent hole.
+ */
+body[data-mica-active="true"] {
+  background: transparent;
 }
 
 input, textarea {
@@ -118,46 +163,136 @@ input, textarea {
 }
 
 /*
+ * Fluent "card" surface: Local/Remote panes and the transfer queue sit on
+ * the Mica canvas as distinct rounded containers rather than edge-to-edge
+ * panels.
+ */
+.fluent-card {
+  border-radius: 8px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-surface-border);
+}
+
+/*
+ * Acrylic material for floating/transient surfaces - Modal, ContextMenu,
+ * CommandPalette, Toasts, DragGhost, Quick Look. Distinct from `.fluent-card`
+ * (which is an opaque content layer): this one is genuinely translucent so
+ * it reads as a separate material hovering above the canvas and cards.
+ * `prefers-reduced-transparency` and the OS high-contrast-adjacent case both
+ * want a frostier, nearly-solid version instead of real blur.
+ */
+.glass-flyout {
+  border-radius: 8px;
+  background: var(--acrylic-bg);
+  border: 1px solid var(--acrylic-border);
+  backdrop-filter: var(--acrylic-blur);
+  -webkit-backdrop-filter: var(--acrylic-blur);
+  box-shadow:
+    inset 0 1px 0 0 var(--acrylic-highlight),
+    0 16px 40px -8px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --acrylic-bg: #2c2c2c; --acrylic-blur: none; }
+  :root:not(.dark) { --acrylic-bg: #fcfcfc; }
+  .glass-flyout { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/*
+ * Fluent focus treatment for text-like inputs: a 2px accent underline
+ * rather than a full ring, matching Win11 controls. Checkboxes/switches/
+ * buttons keep a visible ring instead (set per-component) since they have
+ * no "underline" edge to anchor to.
+ */
+.fluent-input-focus {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent-600);
+}
+
+/* Custom titlebar window buttons (TitleBar.tsx). Hover-only on devices that
+   actually support hover, per the reduced-interactivity guidance below. */
+@media (hover: hover) {
+  .window-control:hover {
+    background: var(--color-surface-3);
+  }
+  .window-control-close:hover {
+    background: #e81123;
+    color: #ffffff;
+  }
+}
+
+/*
  * Accent color themes. `useSettingsStore`/`initSettingsEffects` sets
  * `data-accent` on <html>; redefining the `--color-accent-*` custom
  * properties re-themes every `bg-accent-*`/`text-accent-*`/`border-accent-*`
  * utility used throughout the app, the same trick the light theme above
  * uses for `--color-surface-*`. Elements that already carry a `transition`
  * (most buttons and icons do) animate the swap automatically since it's a
- * genuine CSS custom property change, not a class swap.
+ * genuine CSS custom property change, not a class swap. "blue" (Windows
+ * Blue, #0078d4) is the default and needs no override - it's already the
+ * @theme base above.
  */
-:root[data-accent="blue"] {
-  --color-accent-50: #eff6ff;
-  --color-accent-400: #60a5fa;
-  --color-accent-500: #3b82f6;
-  --color-accent-600: #2563eb;
-  --color-accent-700: #1d4ed8;
+:root[data-accent="violet"] {
+  --color-accent-50: #f5f3ff;
+  --color-accent-100: #ede9fe;
+  --color-accent-200: #ddd6fe;
+  --color-accent-300: #c4b5fd;
+  --color-accent-400: #a78bfa;
+  --color-accent-500: #8b5cf6;
+  --color-accent-600: #7c3aed;
+  --color-accent-700: #6d28d9;
+  --color-accent-800: #5b21b6;
+  --color-accent-900: #4c1d95;
+  --color-accent-950: #2e1065;
 }
 :root[data-accent="emerald"] {
   --color-accent-50: #ecfdf5;
+  --color-accent-100: #d1fae5;
+  --color-accent-200: #a7f3d0;
+  --color-accent-300: #6ee7b7;
   --color-accent-400: #34d399;
   --color-accent-500: #10b981;
   --color-accent-600: #059669;
   --color-accent-700: #047857;
+  --color-accent-800: #065f46;
+  --color-accent-900: #064e3b;
+  --color-accent-950: #022c22;
 }
 :root[data-accent="rose"] {
   --color-accent-50: #fff1f2;
+  --color-accent-100: #ffe4e6;
+  --color-accent-200: #fecdd3;
+  --color-accent-300: #fda4af;
   --color-accent-400: #fb7185;
   --color-accent-500: #f43f5e;
   --color-accent-600: #e11d48;
   --color-accent-700: #be123c;
+  --color-accent-800: #9f1239;
+  --color-accent-900: #881337;
+  --color-accent-950: #4c0519;
 }
 :root[data-accent="amber"] {
   --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
   --color-accent-400: #fbbf24;
   --color-accent-500: #f59e0b;
   --color-accent-600: #d97706;
   --color-accent-700: #b45309;
+  --color-accent-800: #92400e;
+  --color-accent-900: #78350f;
+  --color-accent-950: #451a03;
 }
 :root[data-accent="cyan"] {
   --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
   --color-accent-400: #22d3ee;
   --color-accent-500: #06b6d4;
   --color-accent-600: #0891b2;
   --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+  --color-accent-950: #083344;
 }

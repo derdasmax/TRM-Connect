@@ -100,7 +100,7 @@ export function Pane({ title, pane, transferLabel, onTransferSelection, transfer
     : null;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-1">
+    <div className="fluent-card flex min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center gap-2 border-b border-surface-border px-2 py-1.5">
         <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
           {title}

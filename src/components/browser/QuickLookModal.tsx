@@ -172,11 +172,11 @@ export function QuickLookModal({ entry, connectionId, onClose, onSaved }: QuickL
           }}
         >
           <motion.div
-            className="flex h-[80vh] w-[min(90vw,900px)] flex-col overflow-hidden rounded-xl border border-surface-border bg-surface-1 shadow-2xl"
+            className="glass-flyout flex h-[80vh] w-[min(90vw,900px)] flex-col overflow-hidden"
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 4 }}
-            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
             <div className="flex items-center justify-between border-b border-surface-border px-4 py-2.5">
               <div className="flex min-w-0 items-center gap-2">

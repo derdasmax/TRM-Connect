@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
+  Download,
   FolderClock,
   History,
   Moon,
@@ -21,6 +22,7 @@ import { useSettingsStore } from "../../store/useSettingsStore";
 import { useSitesStore } from "../../store/useSitesStore";
 import { useTabsStore } from "../../store/useTabsStore";
 import { useUiStore } from "../../store/useUiStore";
+import { useUpdateStore } from "../../store/useUpdateStore";
 import { useRecentPathsStore } from "../../store/useRecentPathsStore";
 
 interface Command {
@@ -85,6 +87,16 @@ export function CommandPalette() {
         hint: "App",
         Icon: History,
         run: () => useUiStore.getState().openHistoryModal(),
+      },
+      {
+        id: "check-for-updates",
+        label: "Check for Updates",
+        hint: "App",
+        Icon: Download,
+        run: () => {
+          useUiStore.getState().openSettingsModal("updates");
+          void useUpdateStore.getState().check();
+        },
       },
     ];
 
@@ -199,11 +211,11 @@ export function CommandPalette() {
           }}
         >
           <motion.div
-            className="flex max-h-[60vh] w-[min(90vw,560px)] flex-col overflow-hidden rounded-xl border border-surface-border bg-surface-1 shadow-2xl"
+            className="glass-flyout flex max-h-[60vh] w-[min(90vw,560px)] flex-col overflow-hidden"
             initial={{ opacity: 0, scale: 0.96, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -4 }}
-            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
             <div className="flex items-center gap-2 border-b border-surface-border px-3 py-2.5">
               <Search size={15} className="shrink-0 text-zinc-500" />
